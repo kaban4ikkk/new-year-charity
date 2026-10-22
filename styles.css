@@ -6,7 +6,6 @@ h1, h2, h3 {
     font-weight: 700 !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"] {
-    min-height: 560px;
     background-color: #FFFFFF !important;
     border-radius: 14px !important;
     box-shadow: 0 4px 14px rgba(230, 57, 70, 0.08) !important;
