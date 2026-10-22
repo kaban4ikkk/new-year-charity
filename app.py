@@ -96,6 +96,7 @@ defaults = {
     'purchase_dialog_row_id': None,
     'purchase_dialog_row_name': None,
     'volunteer_auth': False,
+    'view_image_path': None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -169,7 +170,14 @@ def format_age(age):
     else:
         return f"{age} лет"
 
-# --- МОДАЛЬНОЕ ОКНО ОПЛАТЫ (без брони, чисто информационное) ---
+# --- МОДАЛЬНОЕ ОКНО ДЛЯ ФОТО ---
+@st.dialog("📩 Письмо ребёнка")
+def view_image_dialog():
+    img_path = st.session_state.get('view_image_path')
+    if img_path and os.path.exists(img_path):
+        st.image(img_path, use_column_width=True)
+
+# --- МОДАЛЬНОЕ ОКНО ОПЛАТЫ ---
 @st.dialog("💳 Оплата")
 def payment_dialog():
     option = st.session_state.payment_dialog_option
@@ -201,7 +209,7 @@ def payment_dialog():
         st.session_state.show_payment_dialog = False
         st.rerun()
 
-# --- МОДАЛЬНОЕ ОКНО ПОКУПКИ (вариант 3 — с бронью, БЕЗ ФИО) ---
+# --- МОДАЛЬНОЕ ОКНО ПОКУПКИ (вариант 3) ---
 @st.dialog("🛒 Купить подарок самому")
 def purchase_dialog():
     row_id = st.session_state.purchase_dialog_row_id
@@ -271,11 +279,11 @@ with tab1:
                 img_filename = row['photo_filename']
                 img_path = f"static/{img_filename}"
 
+                # Кнопка открытия письма (модальное окно вместо новой вкладки)
                 if os.path.exists(img_path):
-                    st.markdown(
-                        f'<a href="/app/static/{img_filename}" target="_blank" class="letter-link">📩 Читать письмо</a>',
-                        unsafe_allow_html=True
-                    )
+                    if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
+                        st.session_state.view_image_path = img_path
+                        st.rerun()
                 else:
                     st.info("Фото скоро появится")
 
@@ -285,7 +293,6 @@ with tab1:
 
                 st.divider()
 
-                # === ИСПРАВЛЕННЫЙ БЛОК СТАТУСОВ (правильные отступы!) ===
                 if row['status'] == 'free':
                     render_option_selector(row)
                 elif row['status'] == 'reserved':
@@ -299,7 +306,11 @@ with tab1:
                     st.success("✅ Подарок получен фондом!")
                     st.caption("Окно заблокировано.")
 
-    # Модальные окна
+    # --- ВЫЗОВ ВСЕХ МОДАЛЬНЫХ ОКОН ---
+    if st.session_state.get('view_image_path'):
+        view_image_dialog()
+        st.session_state.view_image_path = None  # Сбрасываем, чтобы окно закрывалось
+
     if st.session_state.show_payment_dialog:
         st.session_state.show_payment_dialog = False
         payment_dialog()
@@ -326,7 +337,6 @@ if st.session_state.volunteer_auth and tab2 is not None:
                         age_str = format_age(row['child_age'])
                         name_display = f"{row['child_name']}, {age_str}" if age_str else row['child_name']
                         st.write(f"**{name_display}**")
-                        # Показываем ФИО только если это не Аноним
                         if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
                             st.write(f"Заказал: {row['volunteer_name']}")
                         st.write(f"📞 Телефон: {row['volunteer_phone']}")
@@ -345,7 +355,7 @@ if st.session_state.volunteer_auth and tab2 is not None:
 with tab3:
     st.header("Как это работает?")
     st.markdown("""
-    1. Нажмите **«📩 Читать письмо»** — фотография откроется в новой вкладке.
+    1. Нажмите **«📩 Читать письмо»** — фотография откроется в новом окне.
     2. Выберите удобный вариант помощи:
        - 💝 **Скинуть деньги на подарок** — откроется окно с QR-кодом и ссылкой для перевода.
        - 🎁 **Скинуть деньги на общий сбор** — откроется окно с QR-кодом и ссылкой для перевода в общий фонд.
