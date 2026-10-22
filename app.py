@@ -6,7 +6,7 @@ import os
 from sqlalchemy import create_engine, text
 from PIL import Image, ImageOps
 
-# Настройка параметров страницы (должна быть первой командой Streamlit)
+# Настройка параметров страницы
 st.set_page_config(page_title="Подари Новый год", layout="wide", page_icon="🎁")
 
 # Функция для загрузки внешнего файла со стилями
@@ -15,7 +15,6 @@ def load_css(file_name):
     with open(file_name, encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Подключаем стили
 load_css("styles.css")
 
 # Функция для генерации падающих снежинок
@@ -27,15 +26,13 @@ def add_snowflakes(count=40):
         duration = random.uniform(5, 15)
         delay = random.uniform(0, 10)
         size = random.uniform(0.8, 2.0)
-        # Используем символ снежинки
         snowflakes_html += f'<div class="snowflake" style="left: {left}vw; animation-duration: {duration}s; animation-delay: -{delay}s; font-size: {size}rem;">❄️</div>'
     snowflakes_html += '</div>'
     st.markdown(snowflakes_html, unsafe_allow_html=True)
 
-# Функция для отрисовки светящихся гирлянд по углам
+# Функция для отрисовки светящихся гирлянд
 def add_garlands():
     """Создает SVG-разметку для новогодних гирлянд в углах экрана."""
-    # Левая гирлянда (одна)
     garland_left = """
     <div class="garland garland-left">
         <svg viewBox="0 0 200 150">
@@ -48,8 +45,6 @@ def add_garlands():
         </svg>
     </div>
     """
-    
-    # Правая гирлянда №1 (самая крайняя)
     garland_right_1 = """
     <div class="garland garland-right-1">
         <svg viewBox="0 0 250 180">
@@ -62,8 +57,6 @@ def add_garlands():
         </svg>
     </div>
     """
-    
-    # Правая гирлянда №2 (чуть левее)
     garland_right_2 = """
     <div class="garland garland-right-2">
         <svg viewBox="0 0 150 120">
@@ -76,27 +69,23 @@ def add_garlands():
         </svg>
     </div>
     """
-    
-    # Объединяем и выводим
     st.markdown(garland_left + garland_right_1 + garland_right_2, unsafe_allow_html=True)
 
-# Добавляем снежинки и гирлянды на фон
+# Добавляем снежинки и гирлянды
 add_snowflakes()
 add_garlands()
 
 # Настройки приложения и подключение к базе данных
-# Читаем данные для подключения из секретов Streamlit
 DB_URL = st.secrets["DB_URL"]
 engine = create_engine(DB_URL)
 
-# Ссылка на платежную систему
-PAYMENT_LINK = "https://example.com/pay"
+# Ссылки на платежные системы
+PAYMENT_LINK_SBER = "https://messenger.sbrf.ru/sl/sJx7ApERw6maUQxmU"
+PAYMENT_LINK_TBANK = "https://t.tb.ru/pm_short/5bXCzeGZek5"
 
-# Пароль для входа в панель волонтера
 VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
 # Инициализация переменных состояния
-# Делаем это до отрисовки интерфейса, чтобы избежать ошибок при первом запуске
 defaults = {
     'show_payment_dialog': False,
     'payment_dialog_option': None,
@@ -131,80 +120,64 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("❌ Неверный пароль")
-
     st.divider()
     st.caption("🎄 Акция «Подари мечту»")
 
-# Блок с заголовком и таймером (делим на две колонки)
+# Заголовок и таймер
 col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
-
 with col_title:
     st.title("🎁 Новогодняя акция: Подари мечту")
     st.caption("Выберите письмо ребёнка и помогите исполнить его мечту ✨")
-
 with col_timer:
-    # Загружаем HTML-файл с таймером через компонент, чтобы работал JavaScript
     with open("header.html", "r", encoding="utf-8") as f:
         components.html(f.read(), height=110)
 
-# Вспомогательные функции для работы с данными и базой
+# Вспомогательные функции
 def get_letters():
-    """Загружает все письма из базы данных."""
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
 
-def reserve_letter(letter_id, option, name, phone, pvz, d_date):
-    """Резервирует письмо за пользователем. Используется только для третьего варианта помощи."""
+def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
+    """Резервирует письмо за пользователем. Обновлено для сохранения службы доставки."""
     with engine.begin() as conn:
         query = text("""
             UPDATE cildrens_letters
             SET status = 'reserved', payment_option = :opt, volunteer_name = :name, 
-                volunteer_phone = :phone, delivery_pvz = :pvz, delivery_date = :d_date
+                volunteer_phone = :phone, delivery_service = :service, 
+                delivery_pvz = :pvz, delivery_date = :d_date
             WHERE id = :id AND status = 'free'
         """)
         res = conn.execute(query, {
             "opt": option, "name": name, "phone": phone, 
-            "pvz": pvz, "d_date": d_date, "id": letter_id
+            "service": service, "pvz": pvz, "d_date": d_date, "id": letter_id
         })
         return res.rowcount > 0
 
 def mark_received(letter_id, received: bool):
-    """Меняет статус подарка на 'получен' или возвращает в общий список."""
     new_status = 'received' if received else 'free' 
     with engine.begin() as conn:
         conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
 
 def format_age(age):
-    """Склоняет слово 'год' в зависимости от возраста и скрывает нулевой возраст."""
-    if age is None or pd.isna(age):
-        return None
+    if age is None or pd.isna(age): return None
     age = int(age)
-    if age == 0:
-        return None
-    if 11 <= age % 100 <= 14:
-        return f"{age} лет"
+    if age == 0: return None
+    if 11 <= age % 100 <= 14: return f"{age} лет"
     last = age % 10
-    if last == 1:
-        return f"{age} год"
-    elif last in (2, 3, 4):
-        return f"{age} года"
-    else:
-        return f"{age} лет"
+    if last == 1: return f"{age} год"
+    elif last in (2, 3, 4): return f"{age} года"
+    else: return f"{age} лет"
 
 def load_image_portrait(path):
-    """Читает фото и применяет EXIF-поворот, чтобы вертикальные снимки не отображались боком."""
     img = Image.open(path)
     img = ImageOps.exif_transpose(img)
     return img
 
-
-# Модальные окна (всплывающие диалоги)
+# Модальные окна
 @st.dialog("📩 Письмо ребёнка")
 def view_image_dialog():
-    """Окно для просмотра фотографии письма."""
     img_path = st.session_state.get('view_image_path')
     if img_path and os.path.exists(img_path):
         try:
-            # Применяем правильный поворот перед показом
             img = load_image_portrait(img_path)
             st.image(img, use_column_width=True)
         except Exception as e:
@@ -212,9 +185,7 @@ def view_image_dialog():
 
 @st.dialog("💳 Оплата")
 def payment_dialog():
-    """Окно с информацией для перевода денег (QR-код и ссылка)."""
     option = st.session_state.payment_dialog_option
-
     st.write(f"**Назначение перевода:** {option}")
 
     if option == "Скинуть деньги на подарок":
@@ -223,17 +194,14 @@ def payment_dialog():
         st.caption("Переведите любую сумму в общий фонд. Волонтёр фонда распределит средства на подарки.")
 
     st.divider()
-
-    qr_path = "static/qr.png"
-    if os.path.exists(qr_path):
-        col1, col2, col3 = st.columns([1, 3, 1])
-        with col2:
-            st.image(qr_path, use_column_width=True)
-    else:
-        st.warning("💳 QR-код для оплаты будет добавлен позже. Свяжитесь с координатором фонда.")
-
-    st.write("**Или перейдите по ссылке:**")
-    st.link_button("💳 Перейти к оплате", PAYMENT_LINK, use_container_width=True)
+    st.write("**Выберите удобный способ перевода:**")
+    
+    # Кнопки с ссылками на Сбер и Т-Банк
+    col1, col2 = st.columns(2)
+    with col1:
+        st.link_button("🟢 Сбербанк", PAYMENT_LINK_SBER, use_container_width=True, type="primary")
+    with col2:
+        st.link_button("🟡 Т-Банк", PAYMENT_LINK_TBANK, use_container_width=True, type="primary")
 
     st.divider()
     st.caption("После перевода закройте это окно. Спасибо за помощь! ❤️")
@@ -244,7 +212,6 @@ def payment_dialog():
 
 @st.dialog("🛒 Купить подарок самому")
 def purchase_dialog():
-    """Окно для ввода данных доставки при самостоятельной покупке подарка."""
     row_id = st.session_state.purchase_dialog_row_id
     child_name = st.session_state.purchase_dialog_row_name
 
@@ -253,18 +220,20 @@ def purchase_dialog():
 
     with st.form(key=f"purchase_form_{row_id}"):
         v_phone = st.text_input("Телефон для связи")
-        v_pvz = st.text_input("Адрес ПВЗ Wildberries")
+        
+        # Выбор службы доставки
+        v_service = st.selectbox(
+            "Служба доставки", 
+            ["Wildberries", "Ozon", "Яндекс Маркет", "СДЭК", "Авито"]
+        )
+        v_pvz = st.text_input("Адрес или название ПВЗ")
         v_date = st.date_input("Дата прибытия заказа", value=None)
 
-        submit = st.form_submit_button(
-            "Забронировать и купить",
-            type="primary",
-            use_container_width=True
-        )
+        submit = st.form_submit_button("Забронировать и купить", type="primary", use_container_width=True)
 
         if submit:
-            if v_phone and v_pvz and v_date:
-                if reserve_letter(row_id, "Купить подарок самому", "Аноним", v_phone, v_pvz, v_date):
+            if v_phone and v_pvz and v_date and v_service:
+                if reserve_letter(row_id, "Купить подарок самому", "Аноним", v_phone, v_service, v_pvz, v_date):
                     st.session_state.show_purchase_dialog = False
                     st.success("✅ Вы забронировали подарок! Спасибо!")
                     st.rerun()
@@ -273,8 +242,7 @@ def purchase_dialog():
             else:
                 st.error("Пожалуйста, заполните все поля")
 
-
-# Блок с кнопками выбора варианта помощи для карточки
+# Блок с кнопками выбора варианта помощи
 def render_option_selector(row):
     st.write("**Как вы хотите помочь?**")
 
@@ -294,28 +262,24 @@ def render_option_selector(row):
         st.session_state.show_purchase_dialog = True
         st.rerun()
 
-
-# Основной интерфейс и вкладки
+# Основной интерфейс
 df = get_letters()
 
-# Панель волонтера видна только авторизованным пользователям
 if st.session_state.volunteer_auth:
     tab1, tab2, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "📖 Инструкция"])
 else:
     tab1, tab3 = st.tabs(["✉️ Выбрать письмо", "📖 Инструкция"])
     tab2 = None
 
-# Первая вкладка: карточки с письмами
+# Вкладка 1: Карточки
 with tab1:
     cols = st.columns(3)
-
     for index, row in df.iterrows():
         with cols[index % 3]:
             with st.container(border=True):
                 img_filename = row['photo_filename']
                 img_path = f"static/{img_filename}"
 
-                # Кнопка для открытия модального окна с фото
                 if os.path.exists(img_path):
                     if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
                         st.session_state.view_image_path = img_path
@@ -329,7 +293,6 @@ with tab1:
 
                 st.divider()
 
-                # Логика отображения карточки в зависимости от статуса
                 if row['status'] == 'free':
                     render_option_selector(row)
                 elif row['status'] == 'reserved':
@@ -337,16 +300,16 @@ with tab1:
                     if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
                         st.caption(f"Забрал(а): {row['volunteer_name']}")
                     if row['payment_option'] == "Купить подарок самому":
+                        st.write(f"🚚 Доставка: {row['delivery_service']}")
                         st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
                         st.write(f"📅 Дата: {row['delivery_date']}")
                 elif row['status'] == 'received':
                     st.success("✅ Подарок получен фондом!")
                     st.caption("Окно заблокировано.")
 
-    # Вызов модальных окон, если пользователь нажал на соответствующую кнопку
     if st.session_state.get('view_image_path'):
         view_image_dialog()
-        st.session_state.view_image_path = None  # Сбрасываем флаг, чтобы окно закрывалось
+        st.session_state.view_image_path = None
 
     if st.session_state.show_payment_dialog:
         st.session_state.show_payment_dialog = False
@@ -356,7 +319,7 @@ with tab1:
         st.session_state.show_purchase_dialog = False
         purchase_dialog()
 
-# Вторая вкладка: панель координатора
+# Вкладка 2: Панель координатора
 if st.session_state.volunteer_auth and tab2 is not None:
     with tab2:
         st.header("Панель координатора")
@@ -377,6 +340,7 @@ if st.session_state.volunteer_auth and tab2 is not None:
                         if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
                             st.write(f"Заказал: {row['volunteer_name']}")
                         st.write(f"📞 Телефон: {row['volunteer_phone']}")
+                        st.write(f"🚚 Доставка: {row['delivery_service']}")
                         st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
                         st.write(f"📅 Ожидается: {row['delivery_date']}")
                     with col2:
@@ -388,16 +352,16 @@ if st.session_state.volunteer_auth and tab2 is not None:
                             mark_received(row['id'], False)
                             st.rerun()
 
-# Третья вкладка: инструкция и реквизиты
+# Вкладка 3: Инструкция и реквизиты
 with tab3:
     st.header("Как это работает?")
     st.markdown("""
     1. Нажмите **«📩 Читать письмо»** — фотография откроется в новом окне.
     2. Выберите удобный вариант помощи:
-       - 💝 **Скинуть деньги на подарок** — откроется окно с QR-кодом и ссылкой для перевода.
-       - 🎁 **Скинуть деньги на общий сбор** — откроется окно с QR-кодом и ссылкой для перевода в общий фонд.
-       - 🛒 **Купить подарок самому** — откроется форма с телефоном, адресом ПВЗ Wildberries и датой прибытия. **ФИО указывать не нужно** — вы можете помочь анонимно.
-    3. **Важно про варианты 1 и 2:** деньги идут в общий фонд, волонтёр распределяет их на подарки детям. Переводы не привязываются к конкретному ребёнку — можно переводить любую сумму любое количество раз.
+       - 💝 **Скинуть деньги на подарок** — откроется окно с ссылками на Сбербанк и Т-Банк.
+       - 🎁 **Скинуть деньги на общий сбор** — откроется окно с ссылками на Сбербанк и Т-Банк для перевода в общий фонд.
+       - 🛒 **Купить подарок самому** — откроется форма с телефоном, выбором службы доставки (WB, Ozon и др.), адресом ПВЗ и датой прибытия. **ФИО указывать не нужно** — вы можете помочь анонимно.
+    3. **Важно про варианты 1 и 2:** деньги идут в общий фонд, волонтёр распределяет их на подарки детям. Переводы не привязываются к конкретному ребёнку.
     4. **Про вариант 3:** после заполнения формы подарок закрепляется за вами. Координатор свяжется по указанному телефону для уточнения деталей.
 
     *Пожалуйста, если ваши планы изменились, сообщите координатору — подарок ждёт ребёнок.*
@@ -405,13 +369,10 @@ with tab3:
 
     st.divider()
     st.subheader("💳 Реквизиты для помощи")
-    qr_path = "static/qr.png"
-    if os.path.exists(qr_path):
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.image(qr_path, use_column_width=True)
-    else:
-        st.info("QR-код будет добавлен позже")
-
-    st.write("**Или перейдите по ссылке:**")
-    st.link_button("💳 Перейти к оплате", PAYMENT_LINK, use_container_width=True)
+    st.write("Вы можете перевести средства на покупку подарков по удобной для вас ссылке:")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.link_button("🟢 Перевести через Сбербанк", PAYMENT_LINK_SBER, use_container_width=True, type="primary")
+    with col2:
+        st.link_button("🟡 Перевести через Т-Банк", PAYMENT_LINK_TBANK, use_container_width=True, type="primary")
