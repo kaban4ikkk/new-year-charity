@@ -1,5 +1,6 @@
 import random
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import os
 from sqlalchemy import create_engine, text
@@ -14,18 +15,12 @@ def load_css(file_name):
     with open(file_name, encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Функция для загрузки внешнего HTML-файла
-def load_html(file_name):
-    """Читает HTML-файл и внедряет его в страницу Streamlit."""
-    with open(file_name, encoding="utf-8") as f:
-        st.markdown(f.read(), unsafe_allow_html=True)
-
-# Подключаем стили и шапку с таймером
+# Подключаем стили
 load_css("styles.css")
-load_html("header.html")
 
 # Функция для генерации падающих снежинок
 def add_snowflakes(count=40):
+    """Создает HTML-разметку для анимации падающих снежинок."""
     snowflakes_html = '<div class="snow-container">'
     for _ in range(count):
         left = random.uniform(0, 100)
@@ -37,7 +32,7 @@ def add_snowflakes(count=40):
     snowflakes_html += '</div>'
     st.markdown(snowflakes_html, unsafe_allow_html=True)
 
-# Вызываем функцию добавления снежинок
+# Добавляем снежинки на фон
 add_snowflakes()
 
 # Настройки приложения и подключение к базе данных
@@ -51,8 +46,8 @@ PAYMENT_LINK = "https://example.com/pay"
 # Пароль для входа в панель волонтера
 VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
-# Инициализация переменных состояния. 
-# Делаем это до отрисовки интерфейса, чтобы избежать ошибок при первом запуске.
+# Инициализация переменных состояния
+# Делаем это до отрисовки интерфейса, чтобы избежать ошибок при первом запуске
 defaults = {
     'show_payment_dialog': False,
     'payment_dialog_option': None,
@@ -91,6 +86,17 @@ with st.sidebar:
     st.divider()
     st.caption("🎄 Акция «Подари мечту»")
 
+# Блок с заголовком и таймером (делим на две колонки)
+col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
+
+with col_title:
+    st.title("🎁 Новогодняя акция: Подари мечту")
+    st.caption("Выберите письмо ребёнка и помогите исполнить его мечту ✨")
+
+with col_timer:
+    # Загружаем HTML-файл с таймером через компонент, чтобы работал JavaScript
+    with open("header.html", "r", encoding="utf-8") as f:
+        components.html(f.read(), height=80)
 
 # Вспомогательные функции для работы с данными и базой
 def get_letters():
