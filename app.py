@@ -14,8 +14,15 @@ def load_css(file_name):
     with open(file_name, encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Подключаем наши стили из отдельного файла
+# Функция для загрузки внешнего HTML-файла
+def load_html(file_name):
+    """Читает HTML-файл и внедряет его в страницу Streamlit."""
+    with open(file_name, encoding="utf-8") as f:
+        st.markdown(f.read(), unsafe_allow_html=True)
+
+# Подключаем стили и шапку с таймером
 load_css("styles.css")
+load_html("header.html")
 
 # Функция для генерации падающих снежинок
 def add_snowflakes(count=40):
@@ -30,7 +37,7 @@ def add_snowflakes(count=40):
     snowflakes_html += '</div>'
     st.markdown(snowflakes_html, unsafe_allow_html=True)
 
-# Вызываем функцию
+# Вызываем функцию добавления снежинок
 add_snowflakes()
 
 # Настройки приложения и подключение к базе данных
@@ -83,10 +90,6 @@ with st.sidebar:
 
     st.divider()
     st.caption("🎄 Акция «Подари мечту»")
-
-# Заголовок приложения
-st.title("🎁 Новогодняя акция: Подари мечту")
-st.caption("Выберите письмо ребёнка и помогите исполнить его мечту ✨")
 
 
 # Вспомогательные функции для работы с данными и базой
