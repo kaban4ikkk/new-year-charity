@@ -175,14 +175,12 @@ h1, h2, h3 {
     animation: twinkle 1.5s infinite alternate;
 }
 
-/* Цвета для лампочек (и свечения) */
 .b-red { color: #E63946; fill: #E63946; }
 .b-yellow { color: #FFD166; fill: #FFD166; }
 .b-green { color: #06D6A0; fill: #06D6A0; }
 .b-blue { color: #118AB2; fill: #118AB2; }
 .b-pink { color: #EF476F; fill: #EF476F; }
 
-/* Задержки, чтобы лампочки мигали вразнобой */
 .delay-0 { animation-delay: 0s; }
 .delay-1 { animation-delay: 0.3s; }
 .delay-2 { animation-delay: 0.6s; }
