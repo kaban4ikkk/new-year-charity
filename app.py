@@ -6,7 +6,7 @@ import os
 from sqlalchemy import create_engine, text
 from PIL import Image, ImageOps
 
-# Настройка параметров страницы
+# Настройка параметров страницы (должна быть первой командой Streamlit)
 st.set_page_config(page_title="Подари Новый год", layout="wide", page_icon="🎁")
 
 # Функция для загрузки внешнего файла со стилями
@@ -17,75 +17,79 @@ def load_css(file_name):
 
 load_css("styles.css")
 
-# Функция для генерации падающих снежинок
-def add_snowflakes(count=40):
-    """Создает HTML-разметку для анимации падающих снежинок."""
-    snowflakes_html = '<div class="snow-container">'
-    for _ in range(count):
-        left = random.uniform(0, 100)
-        duration = random.uniform(5, 15)
-        delay = random.uniform(0, 10)
-        size = random.uniform(0.8, 2.0)
-        snowflakes_html += f'<div class="snowflake" style="left: {left}vw; animation-duration: {duration}s; animation-delay: -{delay}s; font-size: {size}rem;">❄️</div>'
-    snowflakes_html += '</div>'
-    st.markdown(snowflakes_html, unsafe_allow_html=True)
+# Кэшируем создание подключения к базе данных (создается один раз на процесс)
+@st.cache_resource
+def get_engine():
+    return create_engine(st.secrets["DB_URL"])
 
-# Функция для отрисовки светящихся гирлянд
-def add_garlands():
-    """Создает SVG-разметку для новогодних гирлянд в углах экрана."""
-    garland_left = """
-    <div class="garland garland-left">
-        <svg viewBox="0 0 200 150">
-            <path d="M 0 0 Q 100 150 200 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
-            <circle cx="20" cy="50" r="7" class="bulb b-red delay-0"/>
-            <circle cx="60" cy="90" r="7" class="bulb b-yellow delay-1"/>
-            <circle cx="100" cy="110" r="7" class="bulb b-green delay-2"/>
-            <circle cx="140" cy="90" r="7" class="bulb b-blue delay-3"/>
-            <circle cx="180" cy="50" r="7" class="bulb b-pink delay-4"/>
-        </svg>
-    </div>
-    """
-    garland_right_1 = """
-    <div class="garland garland-right-1">
-        <svg viewBox="0 0 250 180">
-            <path d="M 0 0 Q 125 180 250 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
-            <circle cx="25" cy="60" r="8" class="bulb b-pink delay-1"/>
-            <circle cx="75" cy="110" r="8" class="bulb b-red delay-3"/>
-            <circle cx="125" cy="130" r="8" class="bulb b-yellow delay-0"/>
-            <circle cx="175" cy="110" r="8" class="bulb b-green delay-2"/>
-            <circle cx="225" cy="60" r="8" class="bulb b-blue delay-4"/>
-        </svg>
-    </div>
-    """
-    garland_right_2 = """
-    <div class="garland garland-right-2">
-        <svg viewBox="0 0 150 120">
-            <path d="M 0 0 Q 75 120 150 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
-            <circle cx="15" cy="40" r="6" class="bulb b-green delay-2"/>
-            <circle cx="45" cy="70" r="6" class="bulb b-blue delay-0"/>
-            <circle cx="75" cy="85" r="6" class="bulb b-pink delay-4"/>
-            <circle cx="105" cy="70" r="6" class="bulb b-red delay-1"/>
-            <circle cx="135" cy="40" r="6" class="bulb b-yellow delay-3"/>
-        </svg>
-    </div>
-    """
-    st.markdown(garland_left + garland_right_1 + garland_right_2, unsafe_allow_html=True)
-
-# Добавляем снежинки и гирлянды
-add_snowflakes()
-add_garlands()
-
-# Настройки приложения и подключение к базе данных
-DB_URL = st.secrets["DB_URL"]
-engine = create_engine(DB_URL)
+engine = get_engine()
 
 # Ссылки на платежные системы
 PAYMENT_LINK_SBER = "https://messenger.sbrf.ru/sl/sJx7ApERw6maUQxmU"
 PAYMENT_LINK_TBANK = "https://t.tb.ru/pm_short/5bXCzeGZek5"
 
+# Пароль для входа в панель волонтера
 VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
-# Инициализация переменных состояния
+# --- ФОНОВЫЕ ЭЛЕМЕНТЫ (снежинки и гирлянды) ---
+# Генерируем HTML один раз за сессию и сохраняем в память, чтобы не нагружать сервер
+def init_background_elements():
+    if 'snowflakes_html' not in st.session_state:
+        html = '<div class="snow-container">'
+        for _ in range(40):
+            left = random.uniform(0, 100)
+            duration = random.uniform(5, 15)
+            delay = random.uniform(0, 10)
+            size = random.uniform(0.8, 2.0)
+            html += f'<div class="snowflake" style="left: {left}vw; animation-duration: {duration}s; animation-delay: -{delay}s; font-size: {size}rem;">❄️</div>'
+        html += '</div>'
+        st.session_state.snowflakes_html = html
+
+    if 'garlands_html' not in st.session_state:
+        garland_left = """
+        <div class="garland garland-left">
+            <svg viewBox="0 0 200 150">
+                <path d="M 0 0 Q 100 150 200 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
+                <circle cx="20" cy="50" r="7" class="bulb b-red delay-0"/>
+                <circle cx="60" cy="90" r="7" class="bulb b-yellow delay-1"/>
+                <circle cx="100" cy="110" r="7" class="bulb b-green delay-2"/>
+                <circle cx="140" cy="90" r="7" class="bulb b-blue delay-3"/>
+                <circle cx="180" cy="50" r="7" class="bulb b-pink delay-4"/>
+            </svg>
+        </div>
+        """
+        garland_right_1 = """
+        <div class="garland garland-right-1">
+            <svg viewBox="0 0 250 180">
+                <path d="M 0 0 Q 125 180 250 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
+                <circle cx="25" cy="60" r="8" class="bulb b-pink delay-1"/>
+                <circle cx="75" cy="110" r="8" class="bulb b-red delay-3"/>
+                <circle cx="125" cy="130" r="8" class="bulb b-yellow delay-0"/>
+                <circle cx="175" cy="110" r="8" class="bulb b-green delay-2"/>
+                <circle cx="225" cy="60" r="8" class="bulb b-blue delay-4"/>
+            </svg>
+        </div>
+        """
+        garland_right_2 = """
+        <div class="garland garland-right-2">
+            <svg viewBox="0 0 150 120">
+                <path d="M 0 0 Q 75 120 150 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
+                <circle cx="15" cy="40" r="6" class="bulb b-green delay-2"/>
+                <circle cx="45" cy="70" r="6" class="bulb b-blue delay-0"/>
+                <circle cx="75" cy="85" r="6" class="bulb b-pink delay-4"/>
+                <circle cx="105" cy="70" r="6" class="bulb b-red delay-1"/>
+                <circle cx="135" cy="40" r="6" class="bulb b-yellow delay-3"/>
+            </svg>
+        </div>
+        """
+        st.session_state.garlands_html = garland_left + garland_right_1 + garland_right_2
+
+init_background_elements()
+st.markdown(st.session_state.snowflakes_html, unsafe_allow_html=True)
+st.markdown(st.session_state.garlands_html, unsafe_allow_html=True)
+
+
+# --- ИНИЦИАЛИЗАЦИЯ ПЕРЕМЕННЫХ СОСТОЯНИЯ ---
 defaults = {
     'show_payment_dialog': False,
     'payment_dialog_option': None,
@@ -99,7 +103,7 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# Боковая панель для авторизации волонтеров
+# --- БОКОВАЯ ПАНЕЛЬ ВОЛОНТЕРА ---
 with st.sidebar:
     st.subheader("🔐 Панель волонтёра")
 
@@ -120,10 +124,11 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("❌ Неверный пароль")
+
     st.divider()
     st.caption("🎄 Акция «Подари мечту»")
 
-# Заголовок и таймер
+# --- ЗАГОЛОВОК И ТАЙМЕР ---
 col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.title("🎁 Новогодняя акция: Подари мечту")
@@ -132,12 +137,14 @@ with col_timer:
     with open("header.html", "r", encoding="utf-8") as f:
         components.html(f.read(), height=110)
 
-# Вспомогательные функции
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+# Кэшируем загрузку писем на 60 секунд для ускорения работы
+@st.cache_data(ttl=60)
 def get_letters():
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
 
 def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
-    """Резервирует письмо за пользователем. Обновлено для сохранения службы доставки."""
+    """Резервирует письмо с сохранением службы доставки."""
     with engine.begin() as conn:
         query = text("""
             UPDATE cildrens_letters
@@ -150,12 +157,15 @@ def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
             "opt": option, "name": name, "phone": phone, 
             "service": service, "pvz": pvz, "d_date": d_date, "id": letter_id
         })
+        # Очищаем кэш, чтобы изменения сразу отобразились
+        get_letters.clear()
         return res.rowcount > 0
 
 def mark_received(letter_id, received: bool):
     new_status = 'received' if received else 'free' 
     with engine.begin() as conn:
         conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
+    get_letters.clear()
 
 def format_age(age):
     if age is None or pd.isna(age): return None
@@ -167,12 +177,14 @@ def format_age(age):
     elif last in (2, 3, 4): return f"{age} года"
     else: return f"{age} лет"
 
+# Кэшируем обработку фотографий (чтобы не читать диск при каждом клике)
+@st.cache_data
 def load_image_portrait(path):
     img = Image.open(path)
     img = ImageOps.exif_transpose(img)
     return img
 
-# Модальные окна
+# --- МОДАЛЬНЫЕ ОКНА ---
 @st.dialog("📩 Письмо ребёнка")
 def view_image_dialog():
     img_path = st.session_state.get('view_image_path')
@@ -196,7 +208,6 @@ def payment_dialog():
     st.divider()
     st.write("**Выберите удобный способ перевода:**")
     
-    # Кнопки с ссылками на Сбер и Т-Банк
     col1, col2 = st.columns(2)
     with col1:
         st.link_button("🟢 Сбербанк", PAYMENT_LINK_SBER, use_container_width=True, type="primary")
@@ -242,7 +253,7 @@ def purchase_dialog():
             else:
                 st.error("Пожалуйста, заполните все поля")
 
-# Блок с кнопками выбора варианта помощи
+# --- БЛОК ВЫБОРА ВАРИАНТА ПОМОЩИ ---
 def render_option_selector(row):
     st.write("**Как вы хотите помочь?**")
 
@@ -262,7 +273,7 @@ def render_option_selector(row):
         st.session_state.show_purchase_dialog = True
         st.rerun()
 
-# Основной интерфейс
+# --- ОСНОВНОЙ ИНТЕРФЕЙС ---
 df = get_letters()
 
 if st.session_state.volunteer_auth:
@@ -271,7 +282,7 @@ else:
     tab1, tab3 = st.tabs(["✉️ Выбрать письмо", "📖 Инструкция"])
     tab2 = None
 
-# Вкладка 1: Карточки
+# Вкладка 1: Карточки с письмами
 with tab1:
     cols = st.columns(3)
     for index, row in df.iterrows():
@@ -307,6 +318,7 @@ with tab1:
                     st.success("✅ Подарок получен фондом!")
                     st.caption("Окно заблокировано.")
 
+    # Вызов модальных окон
     if st.session_state.get('view_image_path'):
         view_image_dialog()
         st.session_state.view_image_path = None
@@ -360,9 +372,9 @@ with tab3:
     2. Выберите удобный вариант помощи:
        - 💝 **Скинуть деньги на подарок** — откроется окно с ссылками на Сбербанк и Т-Банк.
        - 🎁 **Скинуть деньги на общий сбор** — откроется окно с ссылками на Сбербанк и Т-Банк для перевода в общий фонд.
-       - 🛒 **Купить подарок самому** — откроется форма с телефоном, выбором службы доставки (WB, Ozon и др.), адресом ПВЗ и датой прибытия. **ФИО указывать не нужно** — вы можете помочь анонимно.
-    3. **Важно про варианты 1 и 2:** деньги идут в общий фонд, волонтёр распределяет их на подарки детям. Переводы не привязываются к конкретному ребёнку.
-    4. **Про вариант 3:** после заполнения формы подарок закрепляется за вами. Координатор свяжется по указанному телефону для уточнения деталей.
+       - 🛒 **Купить подарок самому** — откроется форма с телефоном, выбором службы доставки, адресом ПВЗ и датой прибытия. **ФИО указывать не нужно**.
+    3. **Важно про варианты 1 и 2:** деньги идут в общий фонд, волонтёр распределяет их на подарки детям.
+    4. **Про вариант 3:** после заполнения формы подарок закрепляется за вами. Координатор свяжется по указанному телефону.
 
     *Пожалуйста, если ваши планы изменились, сообщите координатору — подарок ждёт ребёнок.*
     """)
