@@ -32,8 +32,57 @@ def add_snowflakes(count=40):
     snowflakes_html += '</div>'
     st.markdown(snowflakes_html, unsafe_allow_html=True)
 
-# Добавляем снежинки на фон
+# Функция для отрисовки светящихся гирлянд по углам
+def add_garlands():
+    """Создает SVG-разметку для новогодних гирлянд в углах экрана."""
+    # Левая гирлянда (одна)
+    garland_left = """
+    <div class="garland garland-left">
+        <svg viewBox="0 0 200 150">
+            <path d="M 0 0 Q 100 150 200 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
+            <circle cx="20" cy="50" r="7" class="bulb b-red delay-0"/>
+            <circle cx="60" cy="90" r="7" class="bulb b-yellow delay-1"/>
+            <circle cx="100" cy="110" r="7" class="bulb b-green delay-2"/>
+            <circle cx="140" cy="90" r="7" class="bulb b-blue delay-3"/>
+            <circle cx="180" cy="50" r="7" class="bulb b-pink delay-4"/>
+        </svg>
+    </div>
+    """
+    
+    # Правая гирлянда №1 (самая крайняя)
+    garland_right_1 = """
+    <div class="garland garland-right-1">
+        <svg viewBox="0 0 250 180">
+            <path d="M 0 0 Q 125 180 250 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
+            <circle cx="25" cy="60" r="8" class="bulb b-pink delay-1"/>
+            <circle cx="75" cy="110" r="8" class="bulb b-red delay-3"/>
+            <circle cx="125" cy="130" r="8" class="bulb b-yellow delay-0"/>
+            <circle cx="175" cy="110" r="8" class="bulb b-green delay-2"/>
+            <circle cx="225" cy="60" r="8" class="bulb b-blue delay-4"/>
+        </svg>
+    </div>
+    """
+    
+    # Правая гирлянда №2 (чуть левее)
+    garland_right_2 = """
+    <div class="garland garland-right-2">
+        <svg viewBox="0 0 150 120">
+            <path d="M 0 0 Q 75 120 150 0" fill="none" stroke="#2C3E50" stroke-width="2" opacity="0.5"/>
+            <circle cx="15" cy="40" r="6" class="bulb b-green delay-2"/>
+            <circle cx="45" cy="70" r="6" class="bulb b-blue delay-0"/>
+            <circle cx="75" cy="85" r="6" class="bulb b-pink delay-4"/>
+            <circle cx="105" cy="70" r="6" class="bulb b-red delay-1"/>
+            <circle cx="135" cy="40" r="6" class="bulb b-yellow delay-3"/>
+        </svg>
+    </div>
+    """
+    
+    # Объединяем и выводим
+    st.markdown(garland_left + garland_right_1 + garland_right_2, unsafe_allow_html=True)
+
+# Добавляем снежинки и гирлянды на фон
 add_snowflakes()
+add_garlands()
 
 # Настройки приложения и подключение к базе данных
 # Читаем данные для подключения из секретов Streamlit
