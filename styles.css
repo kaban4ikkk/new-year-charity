@@ -1,1 +1,65 @@
-
+.stApp {
+    background: linear-gradient(180deg, #FFFBF5 0%, #FFE8E0 100%);
+}
+h1, h2, h3 {
+    color: #2C3E50 !important;
+    font-weight: 700 !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"] {
+    min-height: 560px;
+    background-color: #FFFFFF !important;
+    border-radius: 14px !important;
+    box-shadow: 0 4px 14px rgba(230, 57, 70, 0.08) !important;
+    border: 1px solid #FFD4CC !important;
+    padding: 1.2rem !important;
+}
+.letter-link {
+    display: block;
+    padding: 0.6rem 1rem;
+    background-color: #E63946;
+    color: white !important;
+    text-decoration: none !important;
+    border-radius: 0.6rem;
+    text-align: center;
+    font-family: sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.15s;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 2px 6px rgba(230, 57, 70, 0.25);
+}
+.letter-link:hover {
+    background-color: #C1272D;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(230, 57, 70, 0.35);
+}
+.stButton > button, .stLinkButton > a {
+    border-radius: 0.6rem !important;
+    font-weight: 500 !important;
+    transition: all 0.15s !important;
+}
+.stButton > button[kind="secondary"] {
+    background-color: #FFE8E0 !important;
+    color: #2C3E50 !important;
+    border: 1px solid #FFD4CC !important;
+}
+.stButton > button[kind="secondary"]:hover {
+    background-color: #FFD4CC !important;
+    border-color: #E63946 !important;
+}
+.stButton > button[kind="primary"] {
+    background-color: #E63946 !important;
+    color: white !important;
+    border: 1px solid #E63946 !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background-color: #C1272D !important;
+    border-color: #C1272D !important;
+}
+.stAlert { border-radius: 0.6rem !important; }
+.stTabs [data-baseweb="tab-list"] { gap: 8px; }
+.stTabs [data-baseweb="tab"] {
+    border-radius: 0.6rem 0.6rem 0 0 !important;
+    padding: 0.6rem 1.2rem !important;
+    font-weight: 600 !important;
+}
