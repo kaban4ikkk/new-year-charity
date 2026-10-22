@@ -96,7 +96,7 @@ with col_title:
 with col_timer:
     # Загружаем HTML-файл с таймером через компонент, чтобы работал JavaScript
     with open("header.html", "r", encoding="utf-8") as f:
-        components.html(f.read(), height=115)
+        components.html(f.read(), height=110)
 
 # Вспомогательные функции для работы с данными и базой
 def get_letters():
