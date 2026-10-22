@@ -7,7 +7,12 @@ from sqlalchemy import create_engine, text
 from PIL import Image, ImageOps
 
 # Настройка параметров страницы (должна быть первой командой Streamlit)
-st.set_page_config(page_title="Подари Новый год", layout="wide", page_icon="🎁")
+st.set_page_config(
+    page_title="Подари Новый год", 
+    layout="wide", 
+    page_icon="🎁",
+    initial_sidebar_state="collapsed"  # Панель будет свернута по умолчанию
+)
 
 # Функция для загрузки внешнего файла со стилями
 def load_css(file_name):
