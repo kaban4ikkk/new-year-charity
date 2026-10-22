@@ -1,3 +1,4 @@
+import random
 import streamlit as st
 import pandas as pd
 import os
@@ -15,6 +16,22 @@ def load_css(file_name):
 
 # Подключаем наши стили из отдельного файла
 load_css("styles.css")
+
+# Функция для генерации падающих снежинок
+def add_snowflakes(count=40):
+    snowflakes_html = '<div class="snow-container">'
+    for _ in range(count):
+        left = random.uniform(0, 100)
+        duration = random.uniform(5, 15)
+        delay = random.uniform(0, 10)
+        size = random.uniform(0.8, 2.0)
+        # Используем символ снежинки
+        snowflakes_html += f'<div class="snowflake" style="left: {left}vw; animation-duration: {duration}s; animation-delay: -{delay}s; font-size: {size}rem;">❄️</div>'
+    snowflakes_html += '</div>'
+    st.markdown(snowflakes_html, unsafe_allow_html=True)
+
+# Вызываем функцию
+add_snowflakes()
 
 # Настройки приложения и подключение к базе данных
 # Читаем данные для подключения из секретов Streamlit
