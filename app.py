@@ -4,87 +4,31 @@ import os
 from sqlalchemy import create_engine, text
 from PIL import Image, ImageOps
 
-# --- НАСТРОЙКИ ---
-# Читаем данные для подключения из секретов
+# Настройка параметров страницы (должна быть первой командой Streamlit)
+st.set_page_config(page_title="Подари Новый год", layout="wide", page_icon="🎁")
+
+# Функция для загрузки внешнего файла со стилями
+def load_css(file_name):
+    """Читает CSS-файл и внедряет его в страницу Streamlit."""
+    with open(file_name, encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+# Подключаем наши стили из отдельного файла
+load_css("styles.css")
+
+# Настройки приложения и подключение к базе данных
+# Читаем данные для подключения из секретов Streamlit
 DB_URL = st.secrets["DB_URL"]
 engine = create_engine(DB_URL)
+
+# Ссылка на платежную систему
 PAYMENT_LINK = "https://example.com/pay"
-st.set_page_config(page_title="Подари Новый год", layout="wide", page_icon="🎁")
+
+# Пароль для входа в панель волонтера
 VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
-
-# --- СТИЛИ ---
-st.markdown("""
-<style>
-    .stApp {
-        background: linear-gradient(180deg, #FFFBF5 0%, #FFE8E0 100%);
-    }
-    h1, h2, h3 {
-        color: #2C3E50 !important;
-        font-weight: 700 !important;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        min-height: 560px;
-        background-color: #FFFFFF !important;
-        border-radius: 14px !important;
-        box-shadow: 0 4px 14px rgba(230, 57, 70, 0.08) !important;
-        border: 1px solid #FFD4CC !important;
-        padding: 1.2rem !important;
-    }
-    .letter-link {
-        display: block;
-        padding: 0.6rem 1rem;
-        background-color: #E63946;
-        color: white !important;
-        text-decoration: none !important;
-        border-radius: 0.6rem;
-        text-align: center;
-        font-family: sans-serif;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.15s;
-        margin-bottom: 0.5rem;
-        box-shadow: 0 2px 6px rgba(230, 57, 70, 0.25);
-    }
-    .letter-link:hover {
-        background-color: #C1272D;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(230, 57, 70, 0.35);
-    }
-    .stButton > button, .stLinkButton > a {
-        border-radius: 0.6rem !important;
-        font-weight: 500 !important;
-        transition: all 0.15s !important;
-    }
-    .stButton > button[kind="secondary"] {
-        background-color: #FFE8E0 !important;
-        color: #2C3E50 !important;
-        border: 1px solid #FFD4CC !important;
-    }
-    .stButton > button[kind="secondary"]:hover {
-        background-color: #FFD4CC !important;
-        border-color: #E63946 !important;
-    }
-    .stButton > button[kind="primary"] {
-        background-color: #E63946 !important;
-        color: white !important;
-        border: 1px solid #E63946 !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        background-color: #C1272D !important;
-        border-color: #C1272D !important;
-    }
-    .stAlert { border-radius: 0.6rem !important; }
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 0.6rem 0.6rem 0 0 !important;
-        padding: 0.6rem 1.2rem !important;
-        font-weight: 600 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ (до sidebar!) ---
+# Инициализация переменных состояния. 
+# Делаем это до отрисовки интерфейса, чтобы избежать ошибок при первом запуске.
 defaults = {
     'show_payment_dialog': False,
     'payment_dialog_option': None,
@@ -98,7 +42,7 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# --- БОКОВАЯ ПАНЕЛЬ: ВХОД ДЛЯ ВОЛОНТЁРОВ ---
+# Боковая панель для авторизации волонтеров
 with st.sidebar:
     st.subheader("🔐 Панель волонтёра")
 
@@ -123,15 +67,18 @@ with st.sidebar:
     st.divider()
     st.caption("🎄 Акция «Подари мечту»")
 
+# Заголовок приложения
 st.title("🎁 Новогодняя акция: Подари мечту")
 st.caption("Выберите письмо ребёнка и помогите исполнить его мечту ✨")
 
-# --- ФУНКЦИИ ---
+
+# Вспомогательные функции для работы с данными и базой
 def get_letters():
+    """Загружает все письма из базы данных."""
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
 
 def reserve_letter(letter_id, option, name, phone, pvz, d_date):
-    """Резервирует письмо. Используется ТОЛЬКО для варианта 3."""
+    """Резервирует письмо за пользователем. Используется только для третьего варианта помощи."""
     with engine.begin() as conn:
         query = text("""
             UPDATE cildrens_letters
@@ -146,11 +93,13 @@ def reserve_letter(letter_id, option, name, phone, pvz, d_date):
         return res.rowcount > 0
 
 def mark_received(letter_id, received: bool):
+    """Меняет статус подарка на 'получен' или возвращает в общий список."""
     new_status = 'received' if received else 'free' 
     with engine.begin() as conn:
         conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
 
 def format_age(age):
+    """Склоняет слово 'год' в зависимости от возраста и скрывает нулевой возраст."""
     if age is None or pd.isna(age):
         return None
     age = int(age)
@@ -166,28 +115,29 @@ def format_age(age):
     else:
         return f"{age} лет"
 
-# --- ФУНКЦИЯ ДЛЯ ПРАВИЛЬНОГО ПОВОРОТА ФОТО ---
 def load_image_portrait(path):
-    """Читает фото и применяет EXIF-поворот, чтобы вертикальные фото не лежали на боку."""
+    """Читает фото и применяет EXIF-поворот, чтобы вертикальные снимки не отображались боком."""
     img = Image.open(path)
     img = ImageOps.exif_transpose(img)
     return img
 
-# --- МОДАЛЬНОЕ ОКНО ДЛЯ ФОТО ---
+
+# Модальные окна (всплывающие диалоги)
 @st.dialog("📩 Письмо ребёнка")
 def view_image_dialog():
+    """Окно для просмотра фотографии письма."""
     img_path = st.session_state.get('view_image_path')
     if img_path and os.path.exists(img_path):
         try:
-            # Применяем правильный поворот
+            # Применяем правильный поворот перед показом
             img = load_image_portrait(img_path)
             st.image(img, use_column_width=True)
         except Exception as e:
             st.error(f"Не удалось загрузить фото: {e}")
 
-# --- МОДАЛЬНОЕ ОКНО ОПЛАТЫ ---
 @st.dialog("💳 Оплата")
 def payment_dialog():
+    """Окно с информацией для перевода денег (QR-код и ссылка)."""
     option = st.session_state.payment_dialog_option
 
     st.write(f"**Назначение перевода:** {option}")
@@ -217,9 +167,9 @@ def payment_dialog():
         st.session_state.show_payment_dialog = False
         st.rerun()
 
-# --- МОДАЛЬНОЕ ОКНО ПОКУПКИ (вариант 3) ---
 @st.dialog("🛒 Купить подарок самому")
 def purchase_dialog():
+    """Окно для ввода данных доставки при самостоятельной покупке подарка."""
     row_id = st.session_state.purchase_dialog_row_id
     child_name = st.session_state.purchase_dialog_row_name
 
@@ -248,7 +198,8 @@ def purchase_dialog():
             else:
                 st.error("Пожалуйста, заполните все поля")
 
-# --- ВЫБОР ВАРИАНТА ПОМОЩИ ---
+
+# Блок с кнопками выбора варианта помощи для карточки
 def render_option_selector(row):
     st.write("**Как вы хотите помочь?**")
 
@@ -268,16 +219,18 @@ def render_option_selector(row):
         st.session_state.show_purchase_dialog = True
         st.rerun()
 
-# --- ВКЛАДКИ ---
+
+# Основной интерфейс и вкладки
 df = get_letters()
 
+# Панель волонтера видна только авторизованным пользователям
 if st.session_state.volunteer_auth:
     tab1, tab2, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "📖 Инструкция"])
 else:
     tab1, tab3 = st.tabs(["✉️ Выбрать письмо", "📖 Инструкция"])
     tab2 = None
 
-# --- ВКЛАДКА 1 ---
+# Первая вкладка: карточки с письмами
 with tab1:
     cols = st.columns(3)
 
@@ -287,7 +240,7 @@ with tab1:
                 img_filename = row['photo_filename']
                 img_path = f"static/{img_filename}"
 
-                # Кнопка открытия письма (модальное окно)
+                # Кнопка для открытия модального окна с фото
                 if os.path.exists(img_path):
                     if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
                         st.session_state.view_image_path = img_path
@@ -301,6 +254,7 @@ with tab1:
 
                 st.divider()
 
+                # Логика отображения карточки в зависимости от статуса
                 if row['status'] == 'free':
                     render_option_selector(row)
                 elif row['status'] == 'reserved':
@@ -314,10 +268,10 @@ with tab1:
                     st.success("✅ Подарок получен фондом!")
                     st.caption("Окно заблокировано.")
 
-    # --- ВЫЗОВ ВСЕХ МОДАЛЬНЫХ ОКОН ---
+    # Вызов модальных окон, если пользователь нажал на соответствующую кнопку
     if st.session_state.get('view_image_path'):
         view_image_dialog()
-        st.session_state.view_image_path = None  # Сбрасываем, чтобы окно закрывалось
+        st.session_state.view_image_path = None  # Сбрасываем флаг, чтобы окно закрывалось
 
     if st.session_state.show_payment_dialog:
         st.session_state.show_payment_dialog = False
@@ -327,7 +281,7 @@ with tab1:
         st.session_state.show_purchase_dialog = False
         purchase_dialog()
 
-# --- ВКЛАДКА 2: ПАНЕЛЬ ВОЛОНТЁРА ---
+# Вторая вкладка: панель координатора
 if st.session_state.volunteer_auth and tab2 is not None:
     with tab2:
         st.header("Панель координатора")
@@ -359,7 +313,7 @@ if st.session_state.volunteer_auth and tab2 is not None:
                             mark_received(row['id'], False)
                             st.rerun()
 
-# --- ВКЛАДКА 3 ---
+# Третья вкладка: инструкция и реквизиты
 with tab3:
     st.header("Как это работает?")
     st.markdown("""
