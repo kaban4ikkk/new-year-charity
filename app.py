@@ -8,15 +8,10 @@ from PIL import Image, ImageOps
 # Читаем данные для подключения из секретов
 DB_URL = st.secrets["DB_URL"]
 engine = create_engine(DB_URL)
-
 PAYMENT_LINK = "https://example.com/pay"
-
 st.set_page_config(page_title="Подари Новый год", layout="wide", page_icon="🎁")
+VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
-try:
-    VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
-except (KeyError, FileNotFoundError):
-    VOLUNTEER_PASSWORD = "volunteer2024"
 
 # --- СТИЛИ ---
 st.markdown("""
