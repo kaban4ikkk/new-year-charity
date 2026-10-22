@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from sqlalchemy import create_engine, text
+from PIL import Image, ImageOps
 
 # --- НАСТРОЙКИ ---
 # Читаем данные для подключения из секретов
@@ -170,12 +171,24 @@ def format_age(age):
     else:
         return f"{age} лет"
 
+# --- ФУНКЦИЯ ДЛЯ ПРАВИЛЬНОГО ПОВОРОТА ФОТО ---
+def load_image_portrait(path):
+    """Читает фото и применяет EXIF-поворот, чтобы вертикальные фото не лежали на боку."""
+    img = Image.open(path)
+    img = ImageOps.exif_transpose(img)
+    return img
+
 # --- МОДАЛЬНОЕ ОКНО ДЛЯ ФОТО ---
 @st.dialog("📩 Письмо ребёнка")
 def view_image_dialog():
     img_path = st.session_state.get('view_image_path')
     if img_path and os.path.exists(img_path):
-        st.image(img_path, use_column_width=True)
+        try:
+            # Применяем правильный поворот
+            img = load_image_portrait(img_path)
+            st.image(img, use_column_width=True)
+        except Exception as e:
+            st.error(f"Не удалось загрузить фото: {e}")
 
 # --- МОДАЛЬНОЕ ОКНО ОПЛАТЫ ---
 @st.dialog("💳 Оплата")
@@ -279,7 +292,7 @@ with tab1:
                 img_filename = row['photo_filename']
                 img_path = f"static/{img_filename}"
 
-                # Кнопка открытия письма (модальное окно вместо новой вкладки)
+                # Кнопка открытия письма (модальное окно)
                 if os.path.exists(img_path):
                     if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
                         st.session_state.view_image_path = img_path
