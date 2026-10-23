@@ -389,6 +389,10 @@ if st.session_state.volunteer_auth and tab_add is not None:
         with st.form("add_letter_form", clear_on_submit=True):
             child_name = st.text_input("Имя ребёнка*")
             child_age = st.number_input("Возраст (полных лет)", min_value=0, max_value=18, step=1)
+            
+            # Опциональное поле для текста
+            letter_text = st.text_area("Текст письма (по желанию)", help="Можно оставить пустым, если хотите, чтобы текст был только на фото.")
+            
             uploaded_file = st.file_uploader("Фотография письма*", type=["jpg", "jpeg", "png"])
             
             submitted = st.form_submit_button("Сохранить письмо", type="primary", use_container_width=True)
@@ -417,10 +421,13 @@ if st.session_state.volunteer_auth and tab_add is not None:
                         with engine.begin() as conn:
                             conn.execute(text("""
                                 INSERT INTO cildrens_letters 
-                                (child_name, child_age, photo_url, status)
+                                (child_name, child_age, letter_text, photo_url, status)
                                 VALUES (:name, :age, :text, :url, 'free')
                             """), {
-                                "name": child_name, "age": child_age, "url": photo_url
+                                "name": child_name, 
+                                "age": child_age, 
+                                "text": letter_text if letter_text else None, 
+                                "url": photo_url
                             })
                         
                         st.success(f"Письмо для {child_name} успешно добавлено!")
