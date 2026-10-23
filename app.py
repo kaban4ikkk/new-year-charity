@@ -3,15 +3,19 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 import os
+import uuid
+import requests
+from io import BytesIO
 from sqlalchemy import create_engine, text
 from PIL import Image, ImageOps
+from supabase import create_client
 
-# Настройка параметров страницы (должна быть первой командой Streamlit)
+# Настройка параметров страницы
 st.set_page_config(
     page_title="Подари Новый год", 
     layout="wide", 
     page_icon="🎁",
-    initial_sidebar_state="collapsed"  # Панель будет свернута по умолчанию
+    initial_sidebar_state="collapsed"
 )
 
 # Функция для загрузки внешнего файла со стилями
@@ -22,12 +26,15 @@ def load_css(file_name):
 
 load_css("styles.css")
 
-# Кэшируем создание подключения к базе данных (создается один раз на процесс)
+# Кэшируем создание подключения к базе данных
 @st.cache_resource
 def get_engine():
     return create_engine(st.secrets["DB_URL"])
 
 engine = get_engine()
+
+# Инициализация клиента Supabase для загрузки фотографий
+supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_SECRET_KEY"])
 
 # Ссылки на платежные системы
 PAYMENT_LINK_SBER = "https://messenger.sbrf.ru/sl/sJx7ApERw6maUQxmU"
@@ -37,7 +44,6 @@ PAYMENT_LINK_TBANK = "https://t.tb.ru/pm_short/5bXCzeGZek5"
 VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
 # --- ФОНОВЫЕ ЭЛЕМЕНТЫ (снежинки и гирлянды) ---
-# Генерируем HTML один раз за сессию и сохраняем в память, чтобы не нагружать сервер
 def init_background_elements():
     if 'snowflakes_html' not in st.session_state:
         html = '<div class="snow-container">'
@@ -93,7 +99,6 @@ init_background_elements()
 st.markdown(st.session_state.snowflakes_html, unsafe_allow_html=True)
 st.markdown(st.session_state.garlands_html, unsafe_allow_html=True)
 
-
 # --- ИНИЦИАЛИЗАЦИЯ ПЕРЕМЕННЫХ СОСТОЯНИЯ ---
 defaults = {
     'show_payment_dialog': False,
@@ -114,7 +119,7 @@ with st.sidebar:
 
     if st.session_state.volunteer_auth:
         st.success("✅ Вы вошли как волонтёр")
-        st.caption("Вам доступна вкладка «📦 Панель волонтера».")
+        st.caption("Вам доступны панели управления.")
         if st.button("🚪 Выйти", use_container_width=True):
             st.session_state.volunteer_auth = False
             st.rerun()
@@ -143,13 +148,11 @@ with col_timer:
         components.html(f.read(), height=110)
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
-# Кэшируем загрузку писем на 60 секунд для ускорения работы
 @st.cache_data(ttl=60)
 def get_letters():
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
 
 def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
-    """Резервирует письмо с сохранением службы доставки."""
     with engine.begin() as conn:
         query = text("""
             UPDATE cildrens_letters
@@ -162,7 +165,6 @@ def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
             "opt": option, "name": name, "phone": phone, 
             "service": service, "pvz": pvz, "d_date": d_date, "id": letter_id
         })
-        # Очищаем кэш, чтобы изменения сразу отобразились
         get_letters.clear()
         return res.rowcount > 0
 
@@ -182,10 +184,14 @@ def format_age(age):
     elif last in (2, 3, 4): return f"{age} года"
     else: return f"{age} лет"
 
-# Кэшируем обработку фотографий (чтобы не читать диск при каждом клике)
+# Обновленная функция загрузки фото (поддерживает и локальные файлы, и ссылки из облака)
 @st.cache_data
 def load_image_portrait(path):
-    img = Image.open(path)
+    if path.startswith("http"):
+        response = requests.get(path)
+        img = Image.open(BytesIO(response.content))
+    else:
+        img = Image.open(path)
     img = ImageOps.exif_transpose(img)
     return img
 
@@ -193,7 +199,7 @@ def load_image_portrait(path):
 @st.dialog("📩 Письмо ребёнка")
 def view_image_dialog():
     img_path = st.session_state.get('view_image_path')
-    if img_path and os.path.exists(img_path):
+    if img_path:
         try:
             img = load_image_portrait(img_path)
             st.image(img, use_column_width=True)
@@ -236,12 +242,7 @@ def purchase_dialog():
 
     with st.form(key=f"purchase_form_{row_id}"):
         v_phone = st.text_input("Телефон для связи")
-        
-        # Выбор службы доставки
-        v_service = st.selectbox(
-            "Служба доставки", 
-            ["Wildberries", "Ozon", "Яндекс Маркет", "СДЭК", "Авито"]
-        )
+        v_service = st.selectbox("Служба доставки", ["Wildberries", "Ozon", "Яндекс Маркет", "СДЭК", "Авито"])
         v_pvz = st.text_input("Адрес или название ПВЗ")
         v_date = st.date_input("Дата прибытия заказа", value=None)
 
@@ -281,11 +282,13 @@ def render_option_selector(row):
 # --- ОСНОВНОЙ ИНТЕРФЕЙС ---
 df = get_letters()
 
+# Создаем вкладки (добавлена новая вкладка для загрузки писем)
 if st.session_state.volunteer_auth:
-    tab1, tab2, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "📖 Инструкция"])
+    tab1, tab2, tab_add, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "➕ Добавить письмо", "📖 Инструкция"])
 else:
     tab1, tab3 = st.tabs(["✉️ Выбрать письмо", "📖 Инструкция"])
     tab2 = None
+    tab_add = None
 
 # Вкладка 1: Карточки с письмами
 with tab1:
@@ -293,10 +296,18 @@ with tab1:
     for index, row in df.iterrows():
         with cols[index % 3]:
             with st.container(border=True):
-                img_filename = row['photo_filename']
-                img_path = f"static/{img_filename}"
+                
+                # Проверяем: если есть ссылка в photo_url — берем её, иначе ищем локальный файл
+                if pd.notna(row.get('photo_url')) and row['photo_url']:
+                    img_path = row['photo_url']
+                else:
+                    img_filename = row['photo_filename']
+                    img_path = f"static/{img_filename}"
+                    
+                # Проверяем существование (только для локальных файлов)
+                is_valid_image = img_path.startswith("http") or os.path.exists(img_path)
 
-                if os.path.exists(img_path):
+                if is_valid_image:
                     if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
                         st.session_state.view_image_path = img_path
                         st.rerun()
@@ -369,27 +380,79 @@ if st.session_state.volunteer_auth and tab2 is not None:
                             mark_received(row['id'], False)
                             st.rerun()
 
+# Вкладка ДОБАВЛЕНИЯ (видна только волонтерам)
+if st.session_state.volunteer_auth and tab_add is not None:
+    with tab_add:
+        st.header("Добавление нового письма")
+        st.write("Заполните данные и загрузите фотографию. Она автоматически сохранится в облаке.")
+        
+        with st.form("add_letter_form", clear_on_submit=True):
+            child_name = st.text_input("Имя ребёнка*")
+            child_age = st.number_input("Возраст", min_value=0, max_value=18, step=1)
+            letter_text = st.text_area("Текст письма (для внутренней базы)")
+            uploaded_file = st.file_uploader("Фотография письма*", type=["jpg", "jpeg", "png"])
+            
+            submitted = st.form_submit_button("Сохранить письмо", type="primary", use_container_width=True)
+            
+            if submitted:
+                if not child_name or not uploaded_file:
+                    st.error("Пожалуйста, заполните имя и загрузите фото.")
+                else:
+                    try:
+                        # 1. Генерируем уникальное имя файла
+                        file_extension = uploaded_file.name.split(".")[-1]
+                        file_name = f"{uuid.uuid4()}.{file_extension}"
+                        
+                        # 2. Загружаем в Supabase Storage
+                        file_bytes = uploaded_file.getvalue()
+                        supabase.storage.from_("letters-photos").upload(
+                            path=file_name,
+                            file=file_bytes,
+                            file_options={"content-type": uploaded_file.type}
+                        )
+                        
+                        # 3. Получаем ссылку
+                        photo_url = supabase.storage.from_("letters-photos").get_public_url(file_name)
+                        
+                        # 4. Записываем в БД
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO cildrens_letters 
+                                (child_name, child_age, letter_text, photo_url, status)
+                                VALUES (:name, :age, :text, :url, 'free')
+                            """), {
+                                "name": child_name, "age": child_age, 
+                                "text": letter_text, "url": photo_url
+                            })
+                        
+                        st.success(f"Письмо для {child_name} успешно добавлено!")
+                        get_letters.clear() # Сбрасываем кэш, чтобы новое письмо сразу появилось
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Ошибка при сохранении: {e}")
+
 # Вкладка 3: Инструкция и реквизиты
-with tab3:
-    st.header("Как это работает?")
-    st.markdown("""
-    1. Нажмите **«📩 Читать письмо»** — фотография откроется в новом окне.
-    2. Выберите удобный вариант помощи:
-       - 💝 **Скинуть деньги на подарок** — откроется окно с ссылками на Сбербанк и Т-Банк.
-       - 🎁 **Скинуть деньги на общий сбор** — откроется окно с ссылками на Сбербанк и Т-Банк для перевода в общий фонд.
-       - 🛒 **Купить подарок самому** — откроется форма с телефоном, выбором службы доставки, адресом ПВЗ и датой прибытия. **ФИО указывать не нужно**.
-    3. **Важно про варианты 1 и 2:** деньги идут в общий фонд, волонтёр распределяет их на подарки детям.
-    4. **Про вариант 3:** после заполнения формы подарок закрепляется за вами. Координатор свяжется по указанному телефону.
+if tab3 is not None:
+    with tab3:
+        st.header("Как это работает?")
+        st.markdown("""
+        1. Нажмите **«📩 Читать письмо»** — фотография откроется в новом окне.
+        2. Выберите удобный вариант помощи:
+           - 💝 **Скинуть деньги на подарок** — откроется окно с ссылками на Сбербанк и Т-Банк.
+           - 🎁 **Скинуть деньги на общий сбор** — откроется окно с ссылками на Сбербанк и Т-Банк для перевода в общий фонд.
+           - 🛒 **Купить подарок самому** — откроется форма с телефоном, выбором службы доставки, адресом ПВЗ и датой прибытия. **ФИО указывать не нужно**.
+        3. **Важно про варианты 1 и 2:** деньги идут в общий фонд, волонтёр распределяет их на подарки детям.
+        4. **Про вариант 3:** после заполнения формы подарок закрепляется за вами. Координатор свяжется по указанному телефону.
 
-    *Пожалуйста, если ваши планы изменились, сообщите координатору — подарок ждёт ребёнок.*
-    """)
+        *Пожалуйста, если ваши планы изменились, сообщите координатору — подарок ждёт ребёнок.*
+        """)
 
-    st.divider()
-    st.subheader("💳 Реквизиты для помощи")
-    st.write("Вы можете перевести средства на покупку подарков по удобной для вас ссылке:")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.link_button("🟢 Перевести через Сбербанк", PAYMENT_LINK_SBER, use_container_width=True, type="primary")
-    with col2:
-        st.link_button("🟡 Перевести через Т-Банк", PAYMENT_LINK_TBANK, use_container_width=True, type="primary")
+        st.divider()
+        st.subheader("💳 Реквизиты для помощи")
+        st.write("Вы можете перевести средства на покупку подарков по удобной для вас ссылке:")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.link_button("🟢 Перевести через Сбербанк", PAYMENT_LINK_SBER, use_container_width=True, type="primary")
+        with col2:
+            st.link_button("🟡 Перевести через Т-Банк", PAYMENT_LINK_TBANK, use_container_width=True, type="primary")
