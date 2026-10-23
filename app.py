@@ -26,10 +26,15 @@ def load_css(file_name):
 
 load_css("styles.css")
 
-# Кэшируем создание подключения к базе данных
+# Кэшируем создание подключения к базе данных с защитой от "зависаний"
 @st.cache_resource
 def get_engine():
-    return create_engine(st.secrets["DB_URL"])
+    return create_engine(
+        st.secrets["DB_URL"], 
+        pool_pre_ping=True,          # Проверяет соединение перед запросом (лечит "уснувшую" базу)
+        pool_recycle=3600,           # Сбрасывает соединение каждый час
+        connect_args={"connect_timeout": 10} # Если база не отвечает 10 сек, выдаст ошибку
+    )
 
 engine = get_engine()
 
@@ -191,7 +196,6 @@ def filter_letters_for_deletion(df, query):
     if not query:
         return df
     query = str(query).lower()
-    # Ищем по имени (без учета регистра) или по ID
     mask = df['child_name'].str.lower().str.contains(query, na=False) | df['id'].astype(str).str.contains(query)
     return df[mask]
 
@@ -300,8 +304,8 @@ def render_option_selector(row):
         st.rerun()
 
 # --- ОСНОВНОЙ ИНТЕРФЕЙС ---
-#df = get_letters()
-df = pd.DataFrame() # Заглушка: пустая таблица
+# ВАЖНО: Возвращаем загрузку данных из базы
+df = get_letters()
 
 if st.session_state.volunteer_auth:
     tab1, tab2, tab_manage, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "✏️ Управление письмами", "📖 Инструкция"])
@@ -310,7 +314,7 @@ else:
     tab2 = None
     tab_manage = None
 
-# Вкладка 1: Карточки с письмами (БЕЗ ПОИСКА, как и было)
+# Вкладка 1: Карточки с письмами
 with tab1:
     cols = st.columns(3)
     for index, row in df.iterrows():
