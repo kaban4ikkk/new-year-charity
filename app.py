@@ -26,15 +26,10 @@ def load_css(file_name):
 
 load_css("styles.css")
 
-# Кэшируем создание подключения к базе данных с защитой от "зависаний"
+# Кэшируем создание подключения к базе данных
 @st.cache_resource
 def get_engine():
-    return create_engine(
-        st.secrets["DB_URL"], 
-        pool_pre_ping=True,          # Проверяет соединение перед запросом (лечит "уснувшую" базу)
-        pool_recycle=3600,           # Сбрасывает соединение каждый час
-        connect_args={"connect_timeout": 10} # Если база не отвечает 10 сек, выдаст ошибку
-    )
+    return create_engine(st.secrets["DB_URL"])
 
 engine = get_engine()
 
@@ -304,7 +299,6 @@ def render_option_selector(row):
         st.rerun()
 
 # --- ОСНОВНОЙ ИНТЕРФЕЙС ---
-# ВАЖНО: Возвращаем загрузку данных из базы
 df = get_letters()
 
 if st.session_state.volunteer_auth:
