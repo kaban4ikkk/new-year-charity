@@ -300,7 +300,8 @@ def render_option_selector(row):
         st.rerun()
 
 # --- ОСНОВНОЙ ИНТЕРФЕЙС ---
-df = get_letters()
+#df = get_letters()
+df = pd.DataFrame() # Заглушка: пустая таблица
 
 if st.session_state.volunteer_auth:
     tab1, tab2, tab_manage, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "✏️ Управление письмами", "📖 Инструкция"])
