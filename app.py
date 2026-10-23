@@ -174,9 +174,7 @@ def mark_received(letter_id, received: bool):
         conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
     get_letters.clear()
 
-# Новая функция для удаления письма из БД и облака
 def delete_letter(letter_id, photo_url):
-    # Удаляем фото из Supabase Storage, если оно там есть
     if photo_url and "supabase.co" in photo_url:
         try:
             filename = photo_url.split("/")[-1]
@@ -184,10 +182,18 @@ def delete_letter(letter_id, photo_url):
         except Exception as e:
             st.warning(f"Не удалось удалить фото из хранилища: {e}")
             
-    # Удаляем запись из базы данных
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM cildrens_letters WHERE id = :id"), {"id": letter_id})
     get_letters.clear()
+
+# Функция поиска и фильтрации писем
+def filter_letters(df, query):
+    if not query:
+        return df
+    query = str(query).lower()
+    # Ищем по имени (без учета регистра) или по ID
+    mask = df['child_name'].str.lower().str.contains(query, na=False) | df['id'].astype(str).str.contains(query)
+    return df[mask]
 
 def format_age(age):
     if age is None or pd.isna(age): return None
@@ -296,7 +302,6 @@ def render_option_selector(row):
 # --- ОСНОВНОЙ ИНТЕРФЕЙС ---
 df = get_letters()
 
-# Создаем вкладки (переименовали tab_add в tab_manage)
 if st.session_state.volunteer_auth:
     tab1, tab2, tab_manage, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "✏️ Управление письмами", "📖 Инструкция"])
 else:
@@ -304,47 +309,55 @@ else:
     tab2 = None
     tab_manage = None
 
-# Вкладка 1: Карточки с письмами
+# Вкладка 1: Карточки с письмами (добавлен поиск)
 with tab1:
-    cols = st.columns(3)
-    for index, row in df.iterrows():
-        with cols[index % 3]:
-            with st.container(border=True):
-                
-                if pd.notna(row.get('photo_url')) and row['photo_url']:
-                    img_path = row['photo_url']
-                else:
-                    img_filename = row['photo_filename']
-                    img_path = f"static/{img_filename}"
-                    
-                is_valid_image = img_path.startswith("http") or os.path.exists(img_path)
+    # Поле поиска для гостей
+    search_query = st.text_input("🔍 Поиск по имени ребёнка или ID письма", placeholder="Начните вводить имя...")
+    
+    # Фильтруем данные
+    filtered_df = filter_letters(df, search_query)
+    
+    if filtered_df.empty:
+        st.info("По вашему запросу ничего не найдено. Попробуйте изменить имя.")
+    else:
+        cols = st.columns(3)
+        for index, row in filtered_df.iterrows():
+            with cols[index % 3]:
+                with st.container(border=True):
+                    if pd.notna(row.get('photo_url')) and row['photo_url']:
+                        img_path = row['photo_url']
+                    else:
+                        img_filename = row['photo_filename']
+                        img_path = f"static/{img_filename}"
+                        
+                    is_valid_image = img_path.startswith("http") or os.path.exists(img_path)
 
-                if is_valid_image:
-                    if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
-                        st.session_state.view_image_path = img_path
-                        st.rerun()
-                else:
-                    st.info("Фото скоро появится")
+                    if is_valid_image:
+                        if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
+                            st.session_state.view_image_path = img_path
+                            st.rerun()
+                    else:
+                        st.info("Фото скоро появится")
 
-                age_str = format_age(row['child_age'])
-                name_display = f"{row['child_name']}, {age_str}" if age_str else row['child_name']
-                st.subheader(name_display)
+                    age_str = format_age(row['child_age'])
+                    name_display = f"{row['child_name']}, {age_str}" if age_str else row['child_name']
+                    st.subheader(name_display)
 
-                st.divider()
+                    st.divider()
 
-                if row['status'] == 'free':
-                    render_option_selector(row)
-                elif row['status'] == 'reserved':
-                    st.warning("⏳ Уже забронировано")
-                    if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
-                        st.caption(f"Забрал(а): {row['volunteer_name']}")
-                    if row['payment_option'] == "Купить подарок самому":
-                        st.write(f"🚚 Доставка: {row['delivery_service']}")
-                        st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
-                        st.write(f"📅 Дата: {row['delivery_date']}")
-                elif row['status'] == 'received':
-                    st.success("✅ Подарок получен фондом!")
-                    st.caption("Окно заблокировано.")
+                    if row['status'] == 'free':
+                        render_option_selector(row)
+                    elif row['status'] == 'reserved':
+                        st.warning("⏳ Уже забронировано")
+                        if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
+                            st.caption(f"Забрал(а): {row['volunteer_name']}")
+                        if row['payment_option'] == "Купить подарок самому":
+                            st.write(f"🚚 Доставка: {row['delivery_service']}")
+                            st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
+                            st.write(f"📅 Дата: {row['delivery_date']}")
+                    elif row['status'] == 'received':
+                        st.success("✅ Подарок получен фондом!")
+                        st.caption("Окно заблокировано.")
 
     # Вызов модальных окон
     if st.session_state.get('view_image_path'):
@@ -392,12 +405,12 @@ if st.session_state.volunteer_auth and tab2 is not None:
                             mark_received(row['id'], False)
                             st.rerun()
 
-# Вкладка УПРАВЛЕНИЯ (Добавление и Удаление)
+# Вкладка УПРАВЛЕНИЯ (Добавление и Удаление с поиском)
 if st.session_state.volunteer_auth and tab_manage is not None:
     with tab_manage:
         st.header("Управление письмами")
         
-        # --- СЕКЦИЯ ДОБАВЛЕНИЯ ---
+        # Секция добавления
         with st.expander("➕ Добавить новое письмо", expanded=False):
             with st.form("add_letter_form", clear_on_submit=True):
                 child_name = st.text_input("Имя ребёнка*")
@@ -444,32 +457,39 @@ if st.session_state.volunteer_auth and tab_manage is not None:
 
         st.divider()
         
-        # --- СЕКЦИЯ УДАЛЕНИЯ ---
+        # Секция удаления с поиском
         st.subheader("🗑️ Удалить письмо")
-        st.write("Выберите письмо, чтобы безвозвратно удалить его с сайта и из базы данных.")
+        st.write("Найдите письмо по имени или ID, чтобы удалить его с сайта и из базы данных.")
         
-        for index, row in df.iterrows():
-            with st.container(border=True):
-                col1, col2, col3 = st.columns([3, 2, 1])
-                with col1:
-                    st.write(f"**{row['child_name']}** (ID: {row['id']})")
-                with col2:
-                    st.write(f"Статус: {row['status']}")
-                with col3:
-                    confirm_key = f"confirm_del_{row['id']}"
-                    if st.session_state.get(confirm_key):
-                        if st.button("Да, удалить", key=f"yes_del_{row['id']}", type="primary", use_container_width=True):
-                            delete_letter(row['id'], row.get('photo_url'))
-                            st.session_state[confirm_key] = False
-                            st.success(f"Письмо {row['child_name']} удалено.")
-                            st.rerun()
-                        if st.button("Отмена", key=f"no_del_{row['id']}", use_container_width=True):
-                            st.session_state[confirm_key] = False
-                            st.rerun()
-                    else:
-                        if st.button("🗑️ Удалить", key=f"btn_del_{row['id']}", use_container_width=True):
-                            st.session_state[confirm_key] = True
-                            st.rerun()
+        # Поиск для удаления
+        search_del = st.text_input("🔍 Поиск для удаления", placeholder="Введите имя ребёнка или ID...", key="search_del")
+        filtered_del_df = filter_letters(df, search_del)
+
+        if filtered_del_df.empty:
+            st.info("Письма по вашему запросу не найдены.")
+        else:
+            for index, row in filtered_del_df.iterrows():
+                with st.container(border=True):
+                    col1, col2, col3 = st.columns([3, 2, 1])
+                    with col1:
+                        st.write(f"**{row['child_name']}** (ID: {row['id']})")
+                    with col2:
+                        st.write(f"Статус: {row['status']}")
+                    with col3:
+                        confirm_key = f"confirm_del_{row['id']}"
+                        if st.session_state.get(confirm_key):
+                            if st.button("Да, удалить", key=f"yes_del_{row['id']}", type="primary", use_container_width=True):
+                                delete_letter(row['id'], row.get('photo_url'))
+                                st.session_state[confirm_key] = False
+                                st.success(f"Письмо {row['child_name']} удалено.")
+                                st.rerun()
+                            if st.button("Отмена", key=f"no_del_{row['id']}", use_container_width=True):
+                                st.session_state[confirm_key] = False
+                                st.rerun()
+                        else:
+                            if st.button("🗑️ Удалить", key=f"btn_del_{row['id']}", use_container_width=True):
+                                st.session_state[confirm_key] = True
+                                st.rerun()
 
 # Вкладка 3: Инструкция и реквизиты
 if tab3 is not None:
