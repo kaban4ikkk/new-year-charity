@@ -174,6 +174,21 @@ def mark_received(letter_id, received: bool):
         conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
     get_letters.clear()
 
+# Новая функция для удаления письма из БД и облака
+def delete_letter(letter_id, photo_url):
+    # Удаляем фото из Supabase Storage, если оно там есть
+    if photo_url and "supabase.co" in photo_url:
+        try:
+            filename = photo_url.split("/")[-1]
+            supabase.storage.from_("letters-photos").remove([filename])
+        except Exception as e:
+            st.warning(f"Не удалось удалить фото из хранилища: {e}")
+            
+    # Удаляем запись из базы данных
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM cildrens_letters WHERE id = :id"), {"id": letter_id})
+    get_letters.clear()
+
 def format_age(age):
     if age is None or pd.isna(age): return None
     age = int(age)
@@ -184,7 +199,6 @@ def format_age(age):
     elif last in (2, 3, 4): return f"{age} года"
     else: return f"{age} лет"
 
-# Обновленная функция загрузки фото (поддерживает и локальные файлы, и ссылки из облака)
 @st.cache_data
 def load_image_portrait(path):
     if path.startswith("http"):
@@ -282,13 +296,13 @@ def render_option_selector(row):
 # --- ОСНОВНОЙ ИНТЕРФЕЙС ---
 df = get_letters()
 
-# Создаем вкладки (добавлена новая вкладка для загрузки писем)
+# Создаем вкладки (переименовали tab_add в tab_manage)
 if st.session_state.volunteer_auth:
-    tab1, tab2, tab_add, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "➕ Добавить письмо", "📖 Инструкция"])
+    tab1, tab2, tab_manage, tab3 = st.tabs(["✉️ Выбрать письмо", "📦 Панель волонтера", "✏️ Управление письмами", "📖 Инструкция"])
 else:
     tab1, tab3 = st.tabs(["✉️ Выбрать письмо", "📖 Инструкция"])
     tab2 = None
-    tab_add = None
+    tab_manage = None
 
 # Вкладка 1: Карточки с письмами
 with tab1:
@@ -297,14 +311,12 @@ with tab1:
         with cols[index % 3]:
             with st.container(border=True):
                 
-                # Проверяем: если есть ссылка в photo_url — берем её, иначе ищем локальный файл
                 if pd.notna(row.get('photo_url')) and row['photo_url']:
                     img_path = row['photo_url']
                 else:
                     img_filename = row['photo_filename']
                     img_path = f"static/{img_filename}"
                     
-                # Проверяем существование (только для локальных файлов)
                 is_valid_image = img_path.startswith("http") or os.path.exists(img_path)
 
                 if is_valid_image:
@@ -380,61 +392,84 @@ if st.session_state.volunteer_auth and tab2 is not None:
                             mark_received(row['id'], False)
                             st.rerun()
 
-# Вкладка ДОБАВЛЕНИЯ (видна только волонтерам)
-if st.session_state.volunteer_auth and tab_add is not None:
-    with tab_add:
-        st.header("Добавление нового письма")
-        st.write("Заполните данные и загрузите фотографию. Она автоматически сохранится в облаке.")
+# Вкладка УПРАВЛЕНИЯ (Добавление и Удаление)
+if st.session_state.volunteer_auth and tab_manage is not None:
+    with tab_manage:
+        st.header("Управление письмами")
         
-        with st.form("add_letter_form", clear_on_submit=True):
-            child_name = st.text_input("Имя ребёнка*")
-            child_age = st.number_input("Возраст (полных лет)", min_value=0, max_value=18, step=1)
-            
-            # Опциональное поле для текста
-            letter_text = st.text_area("Текст письма (по желанию)", help="Можно оставить пустым, если хотите, чтобы текст был только на фото.")
-            
-            uploaded_file = st.file_uploader("Фотография письма*", type=["jpg", "jpeg", "png"])
-            
-            submitted = st.form_submit_button("Сохранить письмо", type="primary", use_container_width=True)
-            
-            if submitted:
-                if not child_name or not uploaded_file:
-                    st.error("Пожалуйста, заполните имя и загрузите фото.")
-                else:
-                    try:
-                        # 1. Генерируем уникальное имя файла
-                        file_extension = uploaded_file.name.split(".")[-1]
-                        file_name = f"{uuid.uuid4()}.{file_extension}"
-                        
-                        # 2. Загружаем в Supabase Storage
-                        file_bytes = uploaded_file.getvalue()
-                        supabase.storage.from_("letters-photos").upload(
-                            path=file_name,
-                            file=file_bytes,
-                            file_options={"content-type": uploaded_file.type}
-                        )
-                        
-                        # 3. Получаем ссылку
-                        photo_url = supabase.storage.from_("letters-photos").get_public_url(file_name)
-                        
-                        # 4. Записываем в БД
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO cildrens_letters 
-                                (child_name, child_age, letter_text, photo_url, status)
-                                VALUES (:name, :age, :text, :url, 'free')
-                            """), {
-                                "name": child_name, 
-                                "age": child_age, 
-                                "text": letter_text if letter_text else None, 
-                                "url": photo_url
-                            })
-                        
-                        st.success(f"Письмо для {child_name} успешно добавлено!")
-                        get_letters.clear() # Сбрасываем кэш, чтобы новое письмо сразу появилось
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Ошибка при сохранении: {e}")
+        # --- СЕКЦИЯ ДОБАВЛЕНИЯ ---
+        with st.expander("➕ Добавить новое письмо", expanded=False):
+            with st.form("add_letter_form", clear_on_submit=True):
+                child_name = st.text_input("Имя ребёнка*")
+                child_age = st.number_input("Возраст (полных лет)", min_value=0, max_value=18, step=1)
+                letter_text = st.text_area("Текст письма (по желанию)", help="Можно оставить пустым.")
+                uploaded_file = st.file_uploader("Фотография письма*", type=["jpg", "jpeg", "png"])
+                
+                submitted = st.form_submit_button("Сохранить письмо", type="primary", use_container_width=True)
+                
+                if submitted:
+                    if not child_name or not uploaded_file:
+                        st.error("Пожалуйста, заполните имя и загрузите фото.")
+                    else:
+                        try:
+                            file_extension = uploaded_file.name.split(".")[-1]
+                            file_name = f"{uuid.uuid4()}.{file_extension}"
+                            
+                            file_bytes = uploaded_file.getvalue()
+                            supabase.storage.from_("letters-photos").upload(
+                                path=file_name,
+                                file=file_bytes,
+                                file_options={"content-type": uploaded_file.type}
+                            )
+                            
+                            photo_url = supabase.storage.from_("letters-photos").get_public_url(file_name)
+                            
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO cildrens_letters 
+                                    (child_name, child_age, letter_text, photo_url, status)
+                                    VALUES (:name, :age, :text, :url, 'free')
+                                """), {
+                                    "name": child_name, 
+                                    "age": child_age, 
+                                    "text": letter_text if letter_text else None, 
+                                    "url": photo_url
+                                })
+                            
+                            st.success(f"Письмо для {child_name} успешно добавлено!")
+                            get_letters.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Ошибка при сохранении: {e}")
+
+        st.divider()
+        
+        # --- СЕКЦИЯ УДАЛЕНИЯ ---
+        st.subheader("🗑️ Удалить письмо")
+        st.write("Выберите письмо, чтобы безвозвратно удалить его с сайта и из базы данных.")
+        
+        for index, row in df.iterrows():
+            with st.container(border=True):
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    st.write(f"**{row['child_name']}** (ID: {row['id']})")
+                with col2:
+                    st.write(f"Статус: {row['status']}")
+                with col3:
+                    confirm_key = f"confirm_del_{row['id']}"
+                    if st.session_state.get(confirm_key):
+                        if st.button("Да, удалить", key=f"yes_del_{row['id']}", type="primary", use_container_width=True):
+                            delete_letter(row['id'], row.get('photo_url'))
+                            st.session_state[confirm_key] = False
+                            st.success(f"Письмо {row['child_name']} удалено.")
+                            st.rerun()
+                        if st.button("Отмена", key=f"no_del_{row['id']}", use_container_width=True):
+                            st.session_state[confirm_key] = False
+                            st.rerun()
+                    else:
+                        if st.button("🗑️ Удалить", key=f"btn_del_{row['id']}", use_container_width=True):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
 
 # Вкладка 3: Инструкция и реквизиты
 if tab3 is not None:
