@@ -186,8 +186,8 @@ def delete_letter(letter_id, photo_url):
         conn.execute(text("DELETE FROM cildrens_letters WHERE id = :id"), {"id": letter_id})
     get_letters.clear()
 
-# Функция поиска и фильтрации писем
-def filter_letters(df, query):
+# Функция поиска (используется только для удаления)
+def filter_letters_for_deletion(df, query):
     if not query:
         return df
     query = str(query).lower()
@@ -309,55 +309,46 @@ else:
     tab2 = None
     tab_manage = None
 
-# Вкладка 1: Карточки с письмами (добавлен поиск)
+# Вкладка 1: Карточки с письмами (БЕЗ ПОИСКА, как и было)
 with tab1:
-    # Поле поиска для гостей
-    search_query = st.text_input("🔍 Поиск по имени ребёнка или ID письма", placeholder="Начните вводить имя...")
-    
-    # Фильтруем данные
-    filtered_df = filter_letters(df, search_query)
-    
-    if filtered_df.empty:
-        st.info("По вашему запросу ничего не найдено. Попробуйте изменить имя.")
-    else:
-        cols = st.columns(3)
-        for index, row in filtered_df.iterrows():
-            with cols[index % 3]:
-                with st.container(border=True):
-                    if pd.notna(row.get('photo_url')) and row['photo_url']:
-                        img_path = row['photo_url']
-                    else:
-                        img_filename = row['photo_filename']
-                        img_path = f"static/{img_filename}"
-                        
-                    is_valid_image = img_path.startswith("http") or os.path.exists(img_path)
+    cols = st.columns(3)
+    for index, row in df.iterrows():
+        with cols[index % 3]:
+            with st.container(border=True):
+                if pd.notna(row.get('photo_url')) and row['photo_url']:
+                    img_path = row['photo_url']
+                else:
+                    img_filename = row['photo_filename']
+                    img_path = f"static/{img_filename}"
+                    
+                is_valid_image = img_path.startswith("http") or os.path.exists(img_path)
 
-                    if is_valid_image:
-                        if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
-                            st.session_state.view_image_path = img_path
-                            st.rerun()
-                    else:
-                        st.info("Фото скоро появится")
+                if is_valid_image:
+                    if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
+                        st.session_state.view_image_path = img_path
+                        st.rerun()
+                else:
+                    st.info("Фото скоро появится")
 
-                    age_str = format_age(row['child_age'])
-                    name_display = f"{row['child_name']}, {age_str}" if age_str else row['child_name']
-                    st.subheader(name_display)
+                age_str = format_age(row['child_age'])
+                name_display = f"{row['child_name']}, {age_str}" if age_str else row['child_name']
+                st.subheader(name_display)
 
-                    st.divider()
+                st.divider()
 
-                    if row['status'] == 'free':
-                        render_option_selector(row)
-                    elif row['status'] == 'reserved':
-                        st.warning("⏳ Уже забронировано")
-                        if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
-                            st.caption(f"Забрал(а): {row['volunteer_name']}")
-                        if row['payment_option'] == "Купить подарок самому":
-                            st.write(f"🚚 Доставка: {row['delivery_service']}")
-                            st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
-                            st.write(f"📅 Дата: {row['delivery_date']}")
-                    elif row['status'] == 'received':
-                        st.success("✅ Подарок получен фондом!")
-                        st.caption("Окно заблокировано.")
+                if row['status'] == 'free':
+                    render_option_selector(row)
+                elif row['status'] == 'reserved':
+                    st.warning("⏳ Уже забронировано")
+                    if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
+                        st.caption(f"Забрал(а): {row['volunteer_name']}")
+                    if row['payment_option'] == "Купить подарок самому":
+                        st.write(f"🚚 Доставка: {row['delivery_service']}")
+                        st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
+                        st.write(f"📅 Дата: {row['delivery_date']}")
+                elif row['status'] == 'received':
+                    st.success("✅ Подарок получен фондом!")
+                    st.caption("Окно заблокировано.")
 
     # Вызов модальных окон
     if st.session_state.get('view_image_path'):
@@ -463,7 +454,7 @@ if st.session_state.volunteer_auth and tab_manage is not None:
         
         # Поиск для удаления
         search_del = st.text_input("🔍 Поиск для удаления", placeholder="Введите имя ребёнка или ID...", key="search_del")
-        filtered_del_df = filter_letters(df, search_del)
+        filtered_del_df = filter_letters_for_deletion(df, search_del)
 
         if filtered_del_df.empty:
             st.info("Письма по вашему запросу не найдены.")
