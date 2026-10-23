@@ -1,9 +1,8 @@
-streamlit==1.37.0
-pandas==2.2.2
-numpy==1.26.4
-sqlalchemy==2.0.31
-psycopg2-binary==2.9.9
+streamlit
+pandas
+sqlalchemy
+psycopg2-binary
 python-dotenv
-Pillow==10.4.0
+Pillow
 requests
-supabase>=2.34.1
+supabase
