@@ -142,15 +142,15 @@ with st.sidebar:
 col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.markdown("""
-    <div style="display: flex; align-items: flex-start; line-height: 1.4; margin-top: 0; margin-bottom: 5px;">
-        <!-- Блок с подарком -->
-        <div style="font-size: 2rem; margin-right: 12px; margin-top: 2px;">🎁</div>
+    <div style="display: flex; align-items: center; margin-top: 0; margin-bottom: 5px;">
+        <!-- Увеличенный подарок (высота около 2 строк) -->
+        <div style="font-size: 3.5rem; margin-right: 16px; line-height: 1;">🎁</div>
         <!-- Блок с текстом -->
-        <div style="font-size: 1.6rem; font-weight: 700; color: #2C3E50; text-align: left;">
+        <div style="font-size: 1.6rem; font-weight: 700; color: #2C3E50; text-align: left; line-height: 1.4;">
             Новогодняя акция для особенных детей из онко-гематологии: <span style="white-space: nowrap;">письмо Деду Морозу</span>
         </div>
     </div>
-    <p style="font-size: 1rem; color: #7F8C8D; margin-top: 0; margin-bottom: 15px; text-align: left; margin-left: 44px;">
+    <p style="font-size: 1rem; color: #7F8C8D; margin-top: 5px; margin-bottom: 15px; text-align: left; margin-left: 72px;">
         Выберите письмо ребёнка и помогите исполнить его мечту ✨
     </p>
     """, unsafe_allow_html=True)
