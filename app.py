@@ -141,15 +141,15 @@ with st.sidebar:
 # --- ЗАГОЛОВОК И ТАЙМЕР ---
 col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
+    # Выводим полный заголовок с кастомным размером шрифта для лаконичности
     st.markdown("""
-    <h1 style='font-size: 2.2rem; margin-bottom: 0; padding-bottom: 0;'>
-        🎁 Письмо Деду Морозу
-    </h1>
-    <p style='font-size: 1.2rem; color: #E63946; font-weight: 600; margin-top: 5px; margin-bottom: 15px;'>
-        Для детей с онко-гематологией
+    <h2 style="font-size: 1.7rem; font-weight: 700; color: #2C3E50; margin-top: 0; margin-bottom: 5px; line-height: 1.3;">
+        🎁 Новогодняя акция для особенных детей из онко-гемотологии: письмо Деду Морозу
+    </h2>
+    <p style="font-size: 1rem; color: #7F8C8D; margin-top: 0; margin-bottom: 15px;">
+        Выберите письмо ребёнка и помогите исполнить его мечту ✨
     </p>
     """, unsafe_allow_html=True)
-    st.caption("Выберите письмо ребёнка и помогите исполнить его мечту ✨")
 with col_timer:
     with open("header.html", "r", encoding="utf-8") as f:
         components.html(f.read(), height=110)
