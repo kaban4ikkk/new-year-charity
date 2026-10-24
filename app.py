@@ -20,11 +20,19 @@ st.set_page_config(
 
 # Функция для загрузки внешнего файла со стилями
 def load_css(file_name):
-    """Читает CSS-файл и внедряет его в страницу Streamlit."""
     with open(file_name, encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 load_css("styles.css")
+
+# Добавляем минимальную высоту для карточек, чтобы они не съезжали при смене статуса
+st.markdown("""
+<style>
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        min-height: 380px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Кэшируем создание подключения к базе данных
 @st.cache_resource
@@ -108,6 +116,8 @@ defaults = {
     'purchase_dialog_row_name': None,
     'volunteer_auth': False,
     'view_image_path': None,
+    'selected_service': 'Wildberries',
+    'selected_pvz': 'г. Краснодар, ул. Ягодная 487'
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -143,9 +153,7 @@ col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.markdown("""
     <div style="display: flex; align-items: center; margin-top: 0; margin-bottom: 5px;">
-        <!-- Увеличенный символ подарка -->
         <div style="font-size: 3.5rem; margin-right: 16px; line-height: 1;">🎁</div>
-        <!-- Текст заголовка -->
         <div style="font-size: 1.6rem; font-weight: 700; color: #2C3E50; text-align: left; line-height: 1.4;">
             Новогодняя акция для особенных детей из онко-гематологии: <span style="white-space: nowrap;">письмо Деду Морозу</span>
         </div>
@@ -164,7 +172,6 @@ def get_letters():
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
 
 def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
-    """Резервирует подарок за пользователем."""
     with engine.begin() as conn:
         query = text("""
             UPDATE cildrens_letters
@@ -181,14 +188,12 @@ def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
         return res.rowcount > 0
 
 def mark_received(letter_id, received: bool):
-    """Отмечает, что подарок получен, либо возвращает его в общий список."""
     new_status = 'received' if received else 'free' 
     with engine.begin() as conn:
         conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
     get_letters.clear()
 
 def delete_letter(letter_id, photo_url):
-    """Удаляет письмо из базы и фотографию из облачного хранилища."""
     if photo_url and "supabase.co" in photo_url:
         try:
             filename = photo_url.split("/")[-1]
@@ -200,7 +205,6 @@ def delete_letter(letter_id, photo_url):
         conn.execute(text("DELETE FROM cildrens_letters WHERE id = :id"), {"id": letter_id})
     get_letters.clear()
 
-# Функция поиска писем для удаления
 def filter_letters_for_deletion(df, query):
     if not query:
         return df
@@ -209,7 +213,6 @@ def filter_letters_for_deletion(df, query):
     return df[mask]
 
 def format_age(age):
-    """Склоняет слово 'год' и скрывает нулевой возраст."""
     if age is None or pd.isna(age): return None
     age = int(age)
     if age == 0: return None
@@ -221,7 +224,6 @@ def format_age(age):
 
 @st.cache_data
 def load_image_portrait(path):
-    """Загружает фото и применяет EXIF-поворот для правильной ориентации."""
     if path.startswith("http"):
         response = requests.get(path)
         img = Image.open(BytesIO(response.content))
@@ -267,6 +269,21 @@ def payment_dialog():
         st.session_state.show_payment_dialog = False
         st.rerun()
 
+# Изолированный фрагмент для выбора ПВЗ
+@st.fragment
+def delivery_selector():
+    v_service = st.selectbox("Служба доставки", ["Wildberries", "Ozon"], key="v_service_widget")
+    
+    if v_service == "Wildberries":
+        v_pvz = "г. Краснодар, ул. Ягодная 487"
+    else:
+        v_pvz = "г. Краснодар, ул. Персиковая 438"
+        
+    st.info(f"📍 Адрес ПВЗ: {v_pvz}")
+    
+    st.session_state.selected_service = v_service
+    st.session_state.selected_pvz = v_pvz
+
 @st.dialog("🛒 Купить подарок самому")
 def purchase_dialog():
     row_id = st.session_state.purchase_dialog_row_id
@@ -277,24 +294,18 @@ def purchase_dialog():
 
     v_phone = st.text_input("Телефон для связи")
     
-    # Выбор службы доставки
-    v_service = st.selectbox("Служба доставки", ["Wildberries", "Ozon"])
-    
-    # Мгновенная подстановка адреса в зависимости от выбора
-    if v_service == "Wildberries":
-        v_pvz = "г. Краснодар, ул. Ягодная 487"
-    else:
-        v_pvz = "г. Краснодар, ул. Персиковая 438"
-        
-    st.info(f"📍 Адрес ПВЗ: {v_pvz}")
+    # Вызываем изолированный фрагмент
+    delivery_selector()
     
     v_date = st.date_input("Дата прибытия заказа", value=None)
 
-    # Кнопки управления формой
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Забронировать", type="primary", use_container_width=True):
             if v_phone and v_date:
+                v_service = st.session_state.selected_service
+                v_pvz = st.session_state.selected_pvz
+                
                 if reserve_letter(row_id, "Купить подарок самому", "Аноним", v_phone, v_service, v_pvz, v_date):
                     st.session_state.show_purchase_dialog = False
                     st.session_state.purchase_dialog_row_id = None
@@ -391,7 +402,6 @@ with tab1:
         st.session_state.show_payment_dialog = False
         payment_dialog()
 
-    # Вызов окна покупки без сброса состояния перед вызовом
     if st.session_state.show_purchase_dialog and st.session_state.purchase_dialog_row_id is not None:
         purchase_dialog()
 
@@ -428,12 +438,11 @@ if st.session_state.volunteer_auth and tab2 is not None:
                             mark_received(row['id'], False)
                             st.rerun()
 
-# Вкладка управления письмами (добавление и удаление)
+# Вкладка управления письмами
 if st.session_state.volunteer_auth and tab_manage is not None:
     with tab_manage:
         st.header("Управление письмами")
         
-        # Секция добавления
         with st.expander("➕ Добавить новое письмо", expanded=False):
             with st.form("add_letter_form", clear_on_submit=True):
                 child_name = st.text_input("Имя ребёнка*")
@@ -480,7 +489,6 @@ if st.session_state.volunteer_auth and tab_manage is not None:
 
         st.divider()
         
-        # Секция удаления с поиском
         st.subheader("🗑️ Удалить письмо")
         st.write("Найдите письмо по имени или ID, чтобы удалить его с сайта и из базы данных.")
         
@@ -513,7 +521,7 @@ if st.session_state.volunteer_auth and tab_manage is not None:
                                 st.session_state[confirm_key] = True
                                 st.rerun()
 
-# Вкладка с инструкцией и реквизитами для помощи
+# Вкладка с инструкцией и реквизитами
 if tab3 is not None:
     with tab3:
         st.header("Как это работает?")
