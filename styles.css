@@ -5,13 +5,22 @@ h1, h2, h3 {
     color: #2C3E50 !important;
     font-weight: 700 !important;
 }
+
+/* Выравнивание карточек на одном уровне */
+[data-testid="column"] {
+    display: flex !important;
+    flex-direction: column !important;
+}
 [data-testid="stVerticalBlockBorderWrapper"] {
     background-color: #FFFFFF !important;
     border-radius: 14px !important;
     box-shadow: 0 4px 14px rgba(230, 57, 70, 0.08) !important;
     border: 1px solid #FFD4CC !important;
     padding: 1.2rem !important;
+    flex: 1 !important;
+    height: 100% !important;
 }
+
 .letter-link {
     display: block;
     padding: 0.6rem 1rem;
@@ -62,6 +71,8 @@ h1, h2, h3 {
     padding: 0.6rem 1.2rem !important;
     font-weight: 600 !important;
 }
+
+/* Снежинки */
 .snow-container {
     position: fixed;
     top: 0;
@@ -86,101 +97,45 @@ h1, h2, h3 {
         transform: translateY(-10vh) translateX(0) rotate(0deg);
     }
     100% {
-        
         transform: translateY(110vh) translateX(20px) rotate(360deg);
     }
 }
-.header-container {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-bottom: 25px;
-}
 
-.header-title {
-    color: #2C3E50;
-    font-weight: 700;
-    font-size: 2.3rem;
-    margin: 0;
-    padding: 0;
-    font-family: sans-serif;
-}
-
-.header-subtitle {
-    color: #7F8C8D;
-    font-size: 1rem;
-    margin: 8px 0 0 0;
-}
-
-.timer-box {
-    background: #FFFFFF;
-    padding: 12px 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 14px rgba(230,57,70,0.1);
-    border: 1px solid #FFD4CC;
-    font-family: sans-serif;
-    text-align: center;
-    min-width: 220px;
-}
-
-.timer-label {
-    font-size: 0.75rem;
-    color: #E63946;
-    font-weight: bold;
-    margin-bottom: 5px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-}
-
-.timer-value {
-    font-size: 1.3rem;
-    font-weight: bold;
-    color: #2C3E50;
-}
+/* Гирлянды */
 .garland {
     position: fixed;
     top: 0;
     z-index: 9998;
     pointer-events: none;
 }
-
 .garland-left {
     left: 0;
     width: 250px;
 }
-
 .garland-right-1 {
     right: 0;
     width: 300px;
 }
-
 .garland-right-2 {
     right: 220px; 
     width: 200px;
 }
-
 .garland svg {
     width: 100%;
     height: auto;
 }
-
 @keyframes twinkle {
     0% { opacity: 0.4; filter: drop-shadow(0 0 2px currentColor); }
     100% { opacity: 1; filter: drop-shadow(0 0 10px currentColor) drop-shadow(0 0 15px currentColor); }
 }
-
 .bulb {
     animation: twinkle 1.5s infinite alternate;
 }
-
 .b-red { color: #E63946; fill: #E63946; }
 .b-yellow { color: #FFD166; fill: #FFD166; }
 .b-green { color: #06D6A0; fill: #06D6A0; }
 .b-blue { color: #118AB2; fill: #118AB2; }
 .b-pink { color: #EF476F; fill: #EF476F; }
-
 .delay-0 { animation-delay: 0s; }
 .delay-1 { animation-delay: 0.3s; }
 .delay-2 { animation-delay: 0.6s; }
