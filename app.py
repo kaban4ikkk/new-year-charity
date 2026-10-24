@@ -43,7 +43,7 @@ PAYMENT_LINK_TBANK = "https://t.tb.ru/pm_short/5bXCzeGZek5"
 # Пароль для входа в панель волонтера
 VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
-# Генерация фоновых элементов (снежинки и гирлянды)
+# Генерация фоновых элементов: снежинки и гирлянды
 def init_background_elements():
     if 'snowflakes_html' not in st.session_state:
         html = '<div class="snow-container">'
@@ -143,9 +143,9 @@ col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.markdown("""
     <div style="display: flex; align-items: center; margin-top: 0; margin-bottom: 5px;">
-        <!-- Увеличенный подарок -->
+        <!-- Увеличенный символ подарка -->
         <div style="font-size: 3.5rem; margin-right: 16px; line-height: 1;">🎁</div>
-        <!-- Блок с текстом заголовка -->
+        <!-- Текст заголовка -->
         <div style="font-size: 1.6rem; font-weight: 700; color: #2C3E50; text-align: left; line-height: 1.4;">
             Новогодняя акция для особенных детей из онко-гематологии: <span style="white-space: nowrap;">письмо Деду Морозу</span>
         </div>
@@ -164,6 +164,7 @@ def get_letters():
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
 
 def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
+    """Резервирует подарок за пользователем."""
     with engine.begin() as conn:
         query = text("""
             UPDATE cildrens_letters
@@ -180,12 +181,14 @@ def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
         return res.rowcount > 0
 
 def mark_received(letter_id, received: bool):
+    """Отмечает, что подарок получен, либо возвращает его в общий список."""
     new_status = 'received' if received else 'free' 
     with engine.begin() as conn:
         conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
     get_letters.clear()
 
 def delete_letter(letter_id, photo_url):
+    """Удаляет письмо из базы и фотографию из облачного хранилища."""
     if photo_url and "supabase.co" in photo_url:
         try:
             filename = photo_url.split("/")[-1]
@@ -206,6 +209,7 @@ def filter_letters_for_deletion(df, query):
     return df[mask]
 
 def format_age(age):
+    """Склоняет слово 'год' и скрывает нулевой возраст."""
     if age is None or pd.isna(age): return None
     age = int(age)
     if age == 0: return None
@@ -217,6 +221,7 @@ def format_age(age):
 
 @st.cache_data
 def load_image_portrait(path):
+    """Загружает фото и применяет EXIF-поворот для правильной ориентации."""
     if path.startswith("http"):
         response = requests.get(path)
         img = Image.open(BytesIO(response.content))
@@ -225,7 +230,7 @@ def load_image_portrait(path):
     img = ImageOps.exif_transpose(img)
     return img
 
-# Модальные окна (всплывающие диалоги)
+# Модальные окна
 @st.dialog("📩 Письмо ребёнка")
 def view_image_dialog():
     img_path = st.session_state.get('view_image_path')
@@ -270,38 +275,41 @@ def purchase_dialog():
     st.info(f"Вы помогаете ребёнку: **{child_name}**")
     st.write("Заполните данные. Волонтёр свяжется с вами для уточнения деталей и запроса QR-кода для получения заказа.")
 
-    with st.form(key=f"purchase_form_{row_id}"):
-        v_phone = st.text_input("Телефон для связи")
+    v_phone = st.text_input("Телефон для связи")
+    
+    # Выбор службы доставки
+    v_service = st.selectbox("Служба доставки", ["Wildberries", "Ozon"])
+    
+    # Мгновенная подстановка адреса в зависимости от выбора
+    if v_service == "Wildberries":
+        v_pvz = "г. Краснодар, ул. Ягодная 487"
+    else:
+        v_pvz = "г. Краснодар, ул. Персиковая 438"
         
-        # Оставляем только два доступных пункта выдачи
-        v_service = st.selectbox("Служба доставки", ["Wildberries", "Ozon"])
-        
-        # Выводим точный адрес выбранного ПВЗ в качестве подсказки
-        if v_service == "Wildberries":
-            st.info("📍 Адрес ПВЗ: г. Краснодар, ул. Ягодная 487")
-        else:
-            st.info("📍 Адрес ПВЗ: г. Краснодар, ул. Персиковая 438")
-            
-        v_date = st.date_input("Дата прибытия заказа", value=None)
+    st.info(f"📍 Адрес ПВЗ: {v_pvz}")
+    
+    v_date = st.date_input("Дата прибытия заказа", value=None)
 
-        submit = st.form_submit_button("Забронировать и купить", type="primary", use_container_width=True)
-
-        if submit:
-            if v_phone and v_date and v_service:
-                # Автоматически присваиваем адрес в зависимости от выбора
-                if v_service == "Wildberries":
-                    v_pvz = "г. Краснодар, ул. Ягодная 487"
-                else:
-                    v_pvz = "г. Краснодар, ул. Персиковая 438"
-
+    # Кнопки управления формой
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Забронировать", type="primary", use_container_width=True):
+            if v_phone and v_date:
                 if reserve_letter(row_id, "Купить подарок самому", "Аноним", v_phone, v_service, v_pvz, v_date):
                     st.session_state.show_purchase_dialog = False
+                    st.session_state.purchase_dialog_row_id = None
                     st.success("✅ Вы забронировали подарок! Спасибо!")
                     st.rerun()
                 else:
                     st.error("Не удалось забронировать. Возможно, подарок уже заняли.")
             else:
-                st.error("Пожалуйста, заполните все поля")
+                st.error("Пожалуйста, заполните телефон и дату.")
+                
+    with col2:
+        if st.button("Отмена", use_container_width=True):
+            st.session_state.show_purchase_dialog = False
+            st.session_state.purchase_dialog_row_id = None
+            st.rerun()
 
 # Блок кнопок для выбора варианта помощи
 def render_option_selector(row):
@@ -383,8 +391,8 @@ with tab1:
         st.session_state.show_payment_dialog = False
         payment_dialog()
 
+    # Вызов окна покупки без сброса состояния перед вызовом
     if st.session_state.show_purchase_dialog and st.session_state.purchase_dialog_row_id is not None:
-        st.session_state.show_purchase_dialog = False
         purchase_dialog()
 
 # Вкладка 2: Панель координатора
