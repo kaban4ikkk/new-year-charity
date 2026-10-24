@@ -23,22 +23,8 @@ def load_css(file_name):
     with open(file_name, encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
+# Подключаем все стили из отдельного файла
 load_css("styles.css")
-
-# Добавляем CSS-правила для выравнивания карточек по высоте.
-# Мы делаем колонки flex-контейнерами, а рамки карточек заставляем заполнять всю высоту.
-st.markdown("""
-<style>
-    [data-testid="column"] {
-        display: flex !important;
-        flex-direction: column !important;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        flex: 1 !important;
-        height: 100% !important;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # Кэшируем создание подключения к базе данных
 @st.cache_resource
@@ -169,6 +155,7 @@ with col_title:
     </p>
     """, unsafe_allow_html=True)
 with col_timer:
+    # Загружаем внешний HTML файл с таймером
     with open("header.html", "r", encoding="utf-8") as f:
         components.html(f.read(), height=110)
 
