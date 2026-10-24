@@ -141,7 +141,14 @@ with st.sidebar:
 # --- ЗАГОЛОВОК И ТАЙМЕР ---
 col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
-    st.title("🎁 Новогодняя акция для особенных детей из онко-гемотологии: письмо Деду Морозу")
+    st.markdown("""
+    <h1 style='font-size: 2.2rem; margin-bottom: 0; padding-bottom: 0;'>
+        🎁 Письмо Деду Морозу
+    </h1>
+    <p style='font-size: 1.2rem; color: #E63946; font-weight: 600; margin-top: 5px; margin-bottom: 15px;'>
+        Для детей с онко-гематологией
+    </p>
+    """, unsafe_allow_html=True)
     st.caption("Выберите письмо ребёнка и помогите исполнить его мечту ✨")
 with col_timer:
     with open("header.html", "r", encoding="utf-8") as f:
