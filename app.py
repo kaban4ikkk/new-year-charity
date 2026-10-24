@@ -141,7 +141,7 @@ with st.sidebar:
 # --- ЗАГОЛОВОК И ТАЙМЕР ---
 col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
-    st.title("🎁 Новогодняя акция: Подари мечту")
+    st.title("🎁 Новогодняя акция для особенных детей из онко-гемотологии: письмо Деду Морозу")
     st.caption("Выберите письмо ребёнка и помогите исполнить его мечту ✨")
 with col_timer:
     with open("header.html", "r", encoding="utf-8") as f:
