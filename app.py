@@ -43,7 +43,7 @@ PAYMENT_LINK_TBANK = "https://t.tb.ru/pm_short/5bXCzeGZek5"
 # Пароль для входа в панель волонтера
 VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
-# --- ФОНОВЫЕ ЭЛЕМЕНТЫ (снежинки и гирлянды) ---
+# Генерация фоновых элементов (снежинки и гирлянды)
 def init_background_elements():
     if 'snowflakes_html' not in st.session_state:
         html = '<div class="snow-container">'
@@ -99,7 +99,7 @@ init_background_elements()
 st.markdown(st.session_state.snowflakes_html, unsafe_allow_html=True)
 st.markdown(st.session_state.garlands_html, unsafe_allow_html=True)
 
-# --- ИНИЦИАЛИЗАЦИЯ ПЕРЕМЕННЫХ СОСТОЯНИЯ ---
+# Инициализация переменных состояния сессии
 defaults = {
     'show_payment_dialog': False,
     'payment_dialog_option': None,
@@ -113,7 +113,7 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# --- БОКОВАЯ ПАНЕЛЬ ВОЛОНТЕРА ---
+# Боковая панель для авторизации волонтеров
 with st.sidebar:
     st.subheader("🔐 Панель волонтёра")
 
@@ -138,14 +138,14 @@ with st.sidebar:
     st.divider()
     st.caption("🎄 Акция «Подари мечту»")
 
-# --- ЗАГОЛОВОК И ТАЙМЕР ---
+# Блок с заголовком и живым таймером
 col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.markdown("""
     <div style="display: flex; align-items: center; margin-top: 0; margin-bottom: 5px;">
-        <!-- Увеличенный подарок (высота около 2 строк) -->
+        <!-- Увеличенный подарок -->
         <div style="font-size: 3.5rem; margin-right: 16px; line-height: 1;">🎁</div>
-        <!-- Блок с текстом -->
+        <!-- Блок с текстом заголовка -->
         <div style="font-size: 1.6rem; font-weight: 700; color: #2C3E50; text-align: left; line-height: 1.4;">
             Новогодняя акция для особенных детей из онко-гематологии: <span style="white-space: nowrap;">письмо Деду Морозу</span>
         </div>
@@ -158,7 +158,7 @@ with col_timer:
     with open("header.html", "r", encoding="utf-8") as f:
         components.html(f.read(), height=110)
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+# Вспомогательные функции для работы с базой данных
 @st.cache_data(ttl=60)
 def get_letters():
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
@@ -197,7 +197,7 @@ def delete_letter(letter_id, photo_url):
         conn.execute(text("DELETE FROM cildrens_letters WHERE id = :id"), {"id": letter_id})
     get_letters.clear()
 
-# Функция поиска (используется только для удаления)
+# Функция поиска писем для удаления
 def filter_letters_for_deletion(df, query):
     if not query:
         return df
@@ -225,7 +225,7 @@ def load_image_portrait(path):
     img = ImageOps.exif_transpose(img)
     return img
 
-# --- МОДАЛЬНЫЕ ОКНА ---
+# Модальные окна (всплывающие диалоги)
 @st.dialog("📩 Письмо ребёнка")
 def view_image_dialog():
     img_path = st.session_state.get('view_image_path')
@@ -268,18 +268,32 @@ def purchase_dialog():
     child_name = st.session_state.purchase_dialog_row_name
 
     st.info(f"Вы помогаете ребёнку: **{child_name}**")
-    st.write("Заполните данные — координатор свяжется с вами по телефону.")
+    st.write("Заполните данные. Волонтёр свяжется с вами для уточнения деталей и запроса QR-кода для получения заказа.")
 
     with st.form(key=f"purchase_form_{row_id}"):
         v_phone = st.text_input("Телефон для связи")
-        v_service = st.selectbox("Служба доставки", ["Wildberries", "Ozon", "Яндекс Маркет", "СДЭК", "Авито"])
-        v_pvz = st.text_input("Адрес или название ПВЗ")
+        
+        # Оставляем только два доступных пункта выдачи
+        v_service = st.selectbox("Служба доставки", ["Wildberries", "Ozon"])
+        
+        # Выводим точный адрес выбранного ПВЗ в качестве подсказки
+        if v_service == "Wildberries":
+            st.info("📍 Адрес ПВЗ: г. Краснодар, ул. Ягодная 487")
+        else:
+            st.info("📍 Адрес ПВЗ: г. Краснодар, ул. Персиковая 438")
+            
         v_date = st.date_input("Дата прибытия заказа", value=None)
 
         submit = st.form_submit_button("Забронировать и купить", type="primary", use_container_width=True)
 
         if submit:
-            if v_phone and v_pvz and v_date and v_service:
+            if v_phone and v_date and v_service:
+                # Автоматически присваиваем адрес в зависимости от выбора
+                if v_service == "Wildberries":
+                    v_pvz = "г. Краснодар, ул. Ягодная 487"
+                else:
+                    v_pvz = "г. Краснодар, ул. Персиковая 438"
+
                 if reserve_letter(row_id, "Купить подарок самому", "Аноним", v_phone, v_service, v_pvz, v_date):
                     st.session_state.show_purchase_dialog = False
                     st.success("✅ Вы забронировали подарок! Спасибо!")
@@ -289,7 +303,7 @@ def purchase_dialog():
             else:
                 st.error("Пожалуйста, заполните все поля")
 
-# --- БЛОК ВЫБОРА ВАРИАНТА ПОМОЩИ ---
+# Блок кнопок для выбора варианта помощи
 def render_option_selector(row):
     st.write("**Как вы хотите помочь?**")
 
@@ -309,7 +323,7 @@ def render_option_selector(row):
         st.session_state.show_purchase_dialog = True
         st.rerun()
 
-# --- ОСНОВНОЙ ИНТЕРФЕЙС ---
+# Основной интерфейс приложения и вкладки
 df = get_letters()
 
 if st.session_state.volunteer_auth:
@@ -406,7 +420,7 @@ if st.session_state.volunteer_auth and tab2 is not None:
                             mark_received(row['id'], False)
                             st.rerun()
 
-# Вкладка УПРАВЛЕНИЯ (Добавление и Удаление с поиском)
+# Вкладка управления письмами (добавление и удаление)
 if st.session_state.volunteer_auth and tab_manage is not None:
     with tab_manage:
         st.header("Управление письмами")
@@ -462,7 +476,6 @@ if st.session_state.volunteer_auth and tab_manage is not None:
         st.subheader("🗑️ Удалить письмо")
         st.write("Найдите письмо по имени или ID, чтобы удалить его с сайта и из базы данных.")
         
-        # Поиск для удаления
         search_del = st.text_input("🔍 Поиск для удаления", placeholder="Введите имя ребёнка или ID...", key="search_del")
         filtered_del_df = filter_letters_for_deletion(df, search_del)
 
@@ -492,7 +505,7 @@ if st.session_state.volunteer_auth and tab_manage is not None:
                                 st.session_state[confirm_key] = True
                                 st.rerun()
 
-# Вкладка 3: Инструкция и реквизиты
+# Вкладка с инструкцией и реквизитами для помощи
 if tab3 is not None:
     with tab3:
         st.header("Как это работает?")
@@ -501,9 +514,9 @@ if tab3 is not None:
         2. Выберите удобный вариант помощи:
            - 💝 **Скинуть деньги на подарок** — откроется окно с ссылками на Сбербанк и Т-Банк.
            - 🎁 **Скинуть деньги на общий сбор** — откроется окно с ссылками на Сбербанк и Т-Банк для перевода в общий фонд.
-           - 🛒 **Купить подарок самому** — откроется форма с телефоном, выбором службы доставки, адресом ПВЗ и датой прибытия. **ФИО указывать не нужно**.
+           - 🛒 **Купить подарок самому** — откроется форма с телефоном, выбором службы доставки и датой прибытия. **ФИО указывать не нужно**.
         3. **Важно про варианты 1 и 2:** деньги идут в общий фонд, волонтёр распределяет их на подарки детям.
-        4. **Про вариант 3:** после заполнения формы подарок закрепляется за вами. Координатор свяжется по указанному телефону.
+        4. **Про вариант 3:** после заполнения формы подарок закрепляется за вами. Координатор свяжется по указанному телефону, чтобы запросить QR-код для получения заказа.
 
         *Пожалуйста, если ваши планы изменились, сообщите координатору — подарок ждёт ребёнок.*
         """)
