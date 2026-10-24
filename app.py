@@ -25,11 +25,17 @@ def load_css(file_name):
 
 load_css("styles.css")
 
-# Добавляем минимальную высоту для карточек, чтобы они не съезжали при смене статуса
+# Добавляем CSS-правила для выравнивания карточек по высоте.
+# Мы делаем колонки flex-контейнерами, а рамки карточек заставляем заполнять всю высоту.
 st.markdown("""
 <style>
+    [data-testid="column"] {
+        display: flex !important;
+        flex-direction: column !important;
+    }
     [data-testid="stVerticalBlockBorderWrapper"] {
-        min-height: 380px;
+        flex: 1 !important;
+        height: 100% !important;
     }
 </style>
 """, unsafe_allow_html=True)
