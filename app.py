@@ -23,7 +23,6 @@ def load_css(file_name):
     with open(file_name, encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# Подключаем все стили из отдельного файла
 load_css("styles.css")
 
 # Кэшируем создание подключения к базе данных
@@ -155,7 +154,6 @@ with col_title:
     </p>
     """, unsafe_allow_html=True)
 with col_timer:
-    # Загружаем внешний HTML файл с таймером
     with open("header.html", "r", encoding="utf-8") as f:
         components.html(f.read(), height=110)
 
@@ -165,12 +163,14 @@ def get_letters():
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
 
 def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
+    """Резервирует письмо и записывает дату бронирования (NOW)."""
     with engine.begin() as conn:
         query = text("""
             UPDATE cildrens_letters
             SET status = 'reserved', payment_option = :opt, volunteer_name = :name, 
                 volunteer_phone = :phone, delivery_service = :service, 
-                delivery_pvz = :pvz, delivery_date = :d_date
+                delivery_pvz = :pvz, delivery_date = :d_date,
+                reserved_at = NOW()
             WHERE id = :id AND status = 'free'
         """)
         res = conn.execute(query, {
@@ -181,9 +181,13 @@ def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
         return res.rowcount > 0
 
 def mark_received(letter_id, received: bool):
+    """При возврате в общий список очищает дату бронирования."""
     new_status = 'received' if received else 'free' 
     with engine.begin() as conn:
-        conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
+        if received:
+            conn.execute(text("UPDATE cildrens_letters SET status = :st WHERE id = :id"), {"st": new_status, "id": letter_id})
+        else:
+            conn.execute(text("UPDATE cildrens_letters SET status = :st, reserved_at = NULL WHERE id = :id"), {"st": new_status, "id": letter_id})
     get_letters.clear()
 
 def delete_letter(letter_id, photo_url):
@@ -287,7 +291,6 @@ def purchase_dialog():
 
     v_phone = st.text_input("Телефон для связи")
     
-    # Вызываем изолированный фрагмент
     delivery_selector()
     
     v_date = st.date_input("Дата прибытия заказа", value=None)
@@ -422,6 +425,12 @@ if st.session_state.volunteer_auth and tab2 is not None:
                         st.write(f"🚚 Доставка: {row['delivery_service']}")
                         st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
                         st.write(f"📅 Ожидается: {row['delivery_date']}")
+                        
+                        # Отображение даты бронирования
+                        if pd.notna(row.get('reserved_at')):
+                            res_date = pd.to_datetime(row['reserved_at']).strftime('%d.%m.%Y %H:%M')
+                            st.caption(f"🔒 Забронировано: {res_date}")
+                            
                     with col2:
                         st.write("Подарок пришёл?")
                         if st.button("Да", key=f"yes_{row['id']}", type="primary", use_container_width=True):
