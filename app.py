@@ -447,6 +447,9 @@ if st.session_state.volunteer_auth and tab_manage is not None:
         
         with st.expander("➕ Добавить новое письмо", expanded=False):
             with st.form("add_letter_form", clear_on_submit=True):
+                # Поле для ввода ID (необязательное)
+                new_id = st.number_input("Номер письма (ID) - опционально", min_value=1, step=1, value=None, help="Если оставить пустым, номер присвоится автоматически")
+                
                 child_name = st.text_input("Имя ребёнка*")
                 child_age = st.number_input("Возраст (полных лет)", min_value=0, max_value=18, step=1)
                 letter_text = st.text_area("Текст письма (по желанию)", help="Можно оставить пустым.")
@@ -471,23 +474,41 @@ if st.session_state.volunteer_auth and tab_manage is not None:
                             
                             photo_url = supabase.storage.from_("letters-photos").get_public_url(file_name)
                             
+                            # Если ID указан, вставляем его. Если нет - СУБД присвоит сама.
                             with engine.begin() as conn:
-                                conn.execute(text("""
-                                    INSERT INTO cildrens_letters 
-                                    (child_name, child_age, letter_text, photo_url, status)
-                                    VALUES (:name, :age, :text, :url, 'free')
-                                """), {
-                                    "name": child_name, 
-                                    "age": child_age, 
-                                    "text": letter_text if letter_text else None, 
-                                    "url": photo_url
-                                })
+                                if new_id:
+                                    conn.execute(text("""
+                                        INSERT INTO cildrens_letters 
+                                        (id, child_name, child_age, letter_text, photo_url, status)
+                                        VALUES (:new_id, :name, :age, :text, :url, 'free')
+                                    """), {
+                                        "new_id": new_id,
+                                        "name": child_name, 
+                                        "age": child_age, 
+                                        "text": letter_text if letter_text else None, 
+                                        "url": photo_url
+                                    })
+                                else:
+                                    conn.execute(text("""
+                                        INSERT INTO cildrens_letters 
+                                        (child_name, child_age, letter_text, photo_url, status)
+                                        VALUES (:name, :age, :text, :url, 'free')
+                                    """), {
+                                        "name": child_name, 
+                                        "age": child_age, 
+                                        "text": letter_text if letter_text else None, 
+                                        "url": photo_url
+                                    })
                             
                             st.success(f"Письмо для {child_name} успешно добавлено!")
                             get_letters.clear()
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Ошибка при сохранении: {e}")
+                            # Обработка ошибки уникальности ID
+                            if "UniqueViolation" in str(e) or "duplicate key" in str(e).lower():
+                                st.error("❌ Письмо с таким номером (ID) уже существует. Пожалуйста, укажите другой номер или оставьте поле пустым.")
+                            else:
+                                st.error(f"Ошибка при сохранении: {e}")
 
         st.divider()
         
