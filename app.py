@@ -163,7 +163,6 @@ def get_letters():
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
 
 def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
-    """Резервирует письмо и записывает дату бронирования (NOW)."""
     with engine.begin() as conn:
         query = text("""
             UPDATE cildrens_letters
@@ -181,7 +180,6 @@ def reserve_letter(letter_id, option, name, phone, service, pvz, d_date):
         return res.rowcount > 0
 
 def mark_received(letter_id, received: bool):
-    """При возврате в общий список очищает дату бронирования."""
     new_status = 'received' if received else 'free' 
     with engine.begin() as conn:
         if received:
@@ -385,9 +383,19 @@ with tab1:
                         st.write(f"🚚 Доставка: {row['delivery_service']}")
                         st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
                         st.write(f"📅 Дата: {row['delivery_date']}")
+                    else:
+                        # Добавляем пустые строки для выравнивания высоты
+                        st.write("")
+                        st.write("")
+                        st.write("")
                 elif row['status'] == 'received':
                     st.success("✅ Подарок получен фондом!")
                     st.caption("Окно заблокировано.")
+                    # Добавляем пустые строки для выравнивания высоты (зеленые карточки)
+                    st.write("")
+                    st.write("")
+                    st.write("")
+                    st.write("")
 
     # Вызов модальных окон
     if st.session_state.get('view_image_path'):
@@ -426,7 +434,6 @@ if st.session_state.volunteer_auth and tab2 is not None:
                         st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
                         st.write(f"📅 Ожидается: {row['delivery_date']}")
                         
-                        # Отображение даты бронирования
                         if pd.notna(row.get('reserved_at')):
                             res_date = pd.to_datetime(row['reserved_at']).strftime('%d.%m.%Y %H:%M')
                             st.caption(f"🔒 Забронировано: {res_date}")
@@ -447,7 +454,6 @@ if st.session_state.volunteer_auth and tab_manage is not None:
         
         with st.expander("➕ Добавить новое письмо", expanded=False):
             with st.form("add_letter_form", clear_on_submit=True):
-                # Поле для ввода ID (необязательное)
                 new_id = st.number_input("Номер письма (ID) - опционально", min_value=1, step=1, value=None, help="Если оставить пустым, номер присвоится автоматически")
                 
                 child_name = st.text_input("Имя ребёнка*")
@@ -474,7 +480,6 @@ if st.session_state.volunteer_auth and tab_manage is not None:
                             
                             photo_url = supabase.storage.from_("letters-photos").get_public_url(file_name)
                             
-                            # Если ID указан, вставляем его. Если нет - СУБД присвоит сама.
                             with engine.begin() as conn:
                                 if new_id:
                                     conn.execute(text("""
@@ -504,7 +509,6 @@ if st.session_state.volunteer_auth and tab_manage is not None:
                             get_letters.clear()
                             st.rerun()
                         except Exception as e:
-                            # Обработка ошибки уникальности ID
                             if "UniqueViolation" in str(e) or "duplicate key" in str(e).lower():
                                 st.error("❌ Письмо с таким номером (ID) уже существует. Пожалуйста, укажите другой номер или оставьте поле пустым.")
                             else:
