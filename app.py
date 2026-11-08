@@ -319,6 +319,8 @@ def purchase_dialog():
 # Блок кнопок для выбора варианта помощи
 def render_option_selector(row):
     st.write("**Как вы хотите помочь?**")
+    st.write("")
+    st.write("")
 
     if st.button("💝 Скинуть деньги на подарок", key=f"optbtn_{row['id']}_0", use_container_width=True):
         st.session_state.payment_dialog_option = "Скинуть деньги на подарок"
@@ -379,23 +381,33 @@ with tab1:
                     st.warning("⏳ Уже забронировано")
                     if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
                         st.caption(f"Забрал(а): {row['volunteer_name']}")
+                    
                     if row['payment_option'] == "Купить подарок самому":
                         st.write(f"🚚 Доставка: {row['delivery_service']}")
                         st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
                         st.write(f"📅 Дата: {row['delivery_date']}")
                     else:
-                        # Добавляем пустые строки для выравнивания высоты
                         st.write("")
                         st.write("")
                         st.write("")
+                    
+                    # Неактивные кнопки для сохранения высоты карточки
+                    st.button("💝 Скинуть деньги", key=f"dis1_{row['id']}_0", disabled=True, use_container_width=True)
+                    st.button("🎁 Общий сбор", key=f"dis1_{row['id']}_1", disabled=True, use_container_width=True)
+                    st.button("🛒 Купить самому", key=f"dis1_{row['id']}_2", disabled=True, use_container_width=True)
+
                 elif row['status'] == 'received':
                     st.success("✅ Подарок получен фондом!")
                     st.caption("Окно заблокировано.")
-                    # Добавляем пустые строки для выравнивания высоты (зеленые карточки)
+                    
                     st.write("")
                     st.write("")
                     st.write("")
-                    st.write("")
+                    
+                    # Неактивные кнопки для сохранения высоты карточки
+                    st.button("💝 Скинуть деньги", key=f"dis2_{row['id']}_0", disabled=True, use_container_width=True)
+                    st.button("🎁 Общий сбор", key=f"dis2_{row['id']}_1", disabled=True, use_container_width=True)
+                    st.button("🛒 Купить самому", key=f"dis2_{row['id']}_2", disabled=True, use_container_width=True)
 
     # Вызов модальных окон
     if st.session_state.get('view_image_path'):
