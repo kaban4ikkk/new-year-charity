@@ -31,6 +31,7 @@ div[data-testid="column"] > div > div[data-testid="stVerticalBlock"] {
 div[data-testid="stVerticalBlockBorderWrapper"] {
     flex: 1 !important;
     height: 100% !important;
+    min-height: 420px !important; /* Принудительная высота для всех карточек */
     display: flex !important;
     flex-direction: column !important;
     background-color: #FFFFFF !important;
