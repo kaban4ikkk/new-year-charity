@@ -10,7 +10,6 @@ from sqlalchemy import create_engine, text
 from PIL import Image, ImageOps
 from supabase import create_client
 
-# Настройка параметров страницы
 st.set_page_config(
     page_title="Подари Новый год", 
     layout="wide", 
@@ -18,31 +17,23 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Функция для загрузки внешнего файла со стилями
 def load_css(file_name):
     with open(file_name, encoding="utf-8") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 load_css("styles.css")
 
-# Кэшируем создание подключения к базе данных
 @st.cache_resource
 def get_engine():
     return create_engine(st.secrets["DB_URL"])
 
 engine = get_engine()
-
-# Инициализация клиента Supabase для загрузки фотографий
 supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_SECRET_KEY"])
 
-# Ссылки на платежные системы
 PAYMENT_LINK_SBER = "https://messenger.sbrf.ru/sl/sJx7ApERw6maUQxmU"
 PAYMENT_LINK_TBANK = "https://t.tb.ru/pm_short/5bXCzeGZek5"
-
-# Пароль для входа в панель волонтера
 VOLUNTEER_PASSWORD = st.secrets["VOLUNTEER_PASSWORD"]
 
-# Генерация фоновых элементов: снежинки и гирлянды
 def init_background_elements():
     if 'snowflakes_html' not in st.session_state:
         html = '<div class="snow-container">'
@@ -98,7 +89,6 @@ init_background_elements()
 st.markdown(st.session_state.snowflakes_html, unsafe_allow_html=True)
 st.markdown(st.session_state.garlands_html, unsafe_allow_html=True)
 
-# Инициализация переменных состояния сессии
 defaults = {
     'show_payment_dialog': False,
     'payment_dialog_option': None,
@@ -114,10 +104,8 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# Боковая панель для авторизации волонтеров
 with st.sidebar:
     st.subheader("🔐 Панель волонтёра")
-
     if st.session_state.volunteer_auth:
         st.success("✅ Вы вошли как волонтёр")
         st.caption("Вам доступны панели управления.")
@@ -135,11 +123,9 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("❌ Неверный пароль")
-
     st.divider()
     st.caption("🎄 Акция «Подари мечту»")
 
-# Блок с заголовком и живым таймером
 col_title, col_timer = st.columns([3, 1], vertical_alignment="center")
 with col_title:
     st.markdown("""
@@ -157,7 +143,6 @@ with col_timer:
     with open("header.html", "r", encoding="utf-8") as f:
         components.html(f.read(), height=110)
 
-# Вспомогательные функции для работы с базой данных
 @st.cache_data(ttl=60)
 def get_letters():
     return pd.read_sql("SELECT * FROM cildrens_letters ORDER BY id", con=engine)
@@ -195,7 +180,6 @@ def delete_letter(letter_id, photo_url):
             supabase.storage.from_("letters-photos").remove([filename])
         except Exception as e:
             st.warning(f"Не удалось удалить фото из хранилища: {e}")
-            
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM cildrens_letters WHERE id = :id"), {"id": letter_id})
     get_letters.clear()
@@ -227,7 +211,6 @@ def load_image_portrait(path):
     img = ImageOps.exif_transpose(img)
     return img
 
-# Модальные окна
 @st.dialog("📩 Письмо ребёнка")
 def view_image_dialog():
     img_path = st.session_state.get('view_image_path')
@@ -242,40 +225,31 @@ def view_image_dialog():
 def payment_dialog():
     option = st.session_state.payment_dialog_option
     st.write(f"**Назначение перевода:** {option}")
-
     if option == "Скинуть деньги на подарок":
         st.caption("Переведите сумму, которая пойдёт на подарки детям. Волонтёр фонда распределит средства.")
     else:
         st.caption("Переведите любую сумму в общий фонд. Волонтёр фонда распределит средства на подарки.")
-
     st.divider()
     st.write("**Выберите удобный способ перевода:**")
-    
     col1, col2 = st.columns(2)
     with col1:
         st.link_button("🟢 Сбербанк", PAYMENT_LINK_SBER, use_container_width=True, type="primary")
     with col2:
         st.link_button("🟡 Т-Банк", PAYMENT_LINK_TBANK, use_container_width=True, type="primary")
-
     st.divider()
     st.caption("После перевода закройте это окно. Спасибо за помощь! ❤️")
-
     if st.button("Закрыть", use_container_width=True):
         st.session_state.show_payment_dialog = False
         st.rerun()
 
-# Изолированный фрагмент для выбора ПВЗ
 @st.fragment
 def delivery_selector():
     v_service = st.selectbox("Служба доставки", ["Wildberries", "Ozon"], key="v_service_widget")
-    
     if v_service == "Wildberries":
         v_pvz = "г. Краснодар, ул. Ягодная 487"
     else:
         v_pvz = "г. Краснодар, ул. Персиковая 438"
-        
     st.info(f"📍 Адрес ПВЗ: {v_pvz}")
-    
     st.session_state.selected_service = v_service
     st.session_state.selected_pvz = v_pvz
 
@@ -283,23 +257,17 @@ def delivery_selector():
 def purchase_dialog():
     row_id = st.session_state.purchase_dialog_row_id
     child_name = st.session_state.purchase_dialog_row_name
-
     st.info(f"Вы помогаете ребёнку: **{child_name}**")
     st.write("Заполните данные. Волонтёр свяжется с вами для уточнения деталей и запроса QR-кода для получения заказа.")
-
     v_phone = st.text_input("Телефон для связи")
-    
     delivery_selector()
-    
     v_date = st.date_input("Дата прибытия заказа", value=None)
-
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Забронировать", type="primary", use_container_width=True):
             if v_phone and v_date:
                 v_service = st.session_state.selected_service
                 v_pvz = st.session_state.selected_pvz
-                
                 if reserve_letter(row_id, "Купить подарок самому", "Аноним", v_phone, v_service, v_pvz, v_date):
                     st.session_state.show_purchase_dialog = False
                     st.session_state.purchase_dialog_row_id = None
@@ -309,36 +277,28 @@ def purchase_dialog():
                     st.error("Не удалось забронировать. Возможно, подарок уже заняли.")
             else:
                 st.error("Пожалуйста, заполните телефон и дату.")
-                
     with col2:
         if st.button("Отмена", use_container_width=True):
             st.session_state.show_purchase_dialog = False
             st.session_state.purchase_dialog_row_id = None
             st.rerun()
 
-# Блок кнопок для выбора варианта помощи
 def render_option_selector(row):
     st.write("**Как вы хотите помочь?**")
-    st.write("")
-    st.write("")
-
     if st.button("💝 Скинуть деньги на подарок", key=f"optbtn_{row['id']}_0", use_container_width=True):
         st.session_state.payment_dialog_option = "Скинуть деньги на подарок"
         st.session_state.show_payment_dialog = True
         st.rerun()
-
     if st.button("🎁 Скинуть деньги на общий сбор", key=f"optbtn_{row['id']}_1", use_container_width=True):
         st.session_state.payment_dialog_option = "Скинуть деньги на общий сбор"
         st.session_state.show_payment_dialog = True
         st.rerun()
-
     if st.button("🛒 Купить подарок самому", key=f"optbtn_{row['id']}_2", use_container_width=True):
         st.session_state.purchase_dialog_row_id = row['id']
         st.session_state.purchase_dialog_row_name = row['child_name']
         st.session_state.show_purchase_dialog = True
         st.rerun()
 
-# Основной интерфейс приложения и вкладки
 df = get_letters()
 
 if st.session_state.volunteer_auth:
@@ -348,7 +308,6 @@ else:
     tab2 = None
     tab_manage = None
 
-# Вкладка 1: Карточки с письмами
 with tab1:
     cols = st.columns(3)
     for index, row in df.iterrows():
@@ -359,9 +318,7 @@ with tab1:
                 else:
                     img_filename = row['photo_filename']
                     img_path = f"static/{img_filename}"
-                    
                 is_valid_image = img_path.startswith("http") or os.path.exists(img_path)
-
                 if is_valid_image:
                     if st.button("📩 Читать письмо", key=f"read_{row['id']}", use_container_width=True, type="primary"):
                         st.session_state.view_image_path = img_path
@@ -372,7 +329,6 @@ with tab1:
                 age_str = format_age(row['child_age'])
                 name_display = f"{row['child_name']}, {age_str}" if age_str else row['child_name']
                 st.subheader(name_display)
-
                 st.divider()
 
                 if row['status'] == 'free':
@@ -381,54 +337,28 @@ with tab1:
                     st.warning("⏳ Уже забронировано")
                     if row['volunteer_name'] and row['volunteer_name'] != "Аноним":
                         st.caption(f"Забрал(а): {row['volunteer_name']}")
-                    
                     if row['payment_option'] == "Купить подарок самому":
                         st.write(f"🚚 Доставка: {row['delivery_service']}")
                         st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
                         st.write(f"📅 Дата: {row['delivery_date']}")
-                    else:
-                        st.write("")
-                        st.write("")
-                        st.write("")
-                    
-                    # Неактивные кнопки для сохранения высоты карточки
-                    st.button("💝 Скинуть деньги", key=f"dis1_{row['id']}_0", disabled=True, use_container_width=True)
-                    st.button("🎁 Общий сбор", key=f"dis1_{row['id']}_1", disabled=True, use_container_width=True)
-                    st.button("🛒 Купить самому", key=f"dis1_{row['id']}_2", disabled=True, use_container_width=True)
-
                 elif row['status'] == 'received':
                     st.success("✅ Подарок получен фондом!")
                     st.caption("Окно заблокировано.")
-                    
-                    st.write("")
-                    st.write("")
-                    st.write("")
-                    
-                    # Неактивные кнопки для сохранения высоты карточки
-                    st.button("💝 Скинуть деньги", key=f"dis2_{row['id']}_0", disabled=True, use_container_width=True)
-                    st.button("🎁 Общий сбор", key=f"dis2_{row['id']}_1", disabled=True, use_container_width=True)
-                    st.button("🛒 Купить самому", key=f"dis2_{row['id']}_2", disabled=True, use_container_width=True)
 
-    # Вызов модальных окон
     if st.session_state.get('view_image_path'):
         view_image_dialog()
         st.session_state.view_image_path = None
-
     if st.session_state.show_payment_dialog:
         st.session_state.show_payment_dialog = False
         payment_dialog()
-
     if st.session_state.show_purchase_dialog and st.session_state.purchase_dialog_row_id is not None:
         purchase_dialog()
 
-# Вкладка 2: Панель координатора
 if st.session_state.volunteer_auth and tab2 is not None:
     with tab2:
         st.header("Панель координатора")
         st.write("Здесь волонтёры отмечают, пришли ли заказы в ПВЗ.")
-
         df_reserved = df[df['status'] == 'reserved']
-
         if df_reserved.empty:
             st.info("Нет забронированных подарков, ожидающих получения.")
         else:
@@ -445,11 +375,9 @@ if st.session_state.volunteer_auth and tab2 is not None:
                         st.write(f"🚚 Доставка: {row['delivery_service']}")
                         st.write(f"📦 ПВЗ: {row['delivery_pvz']}")
                         st.write(f"📅 Ожидается: {row['delivery_date']}")
-                        
                         if pd.notna(row.get('reserved_at')):
                             res_date = pd.to_datetime(row['reserved_at']).strftime('%d.%m.%Y %H:%M')
                             st.caption(f"🔒 Забронировано: {res_date}")
-                            
                     with col2:
                         st.write("Подарок пришёл?")
                         if st.button("Да", key=f"yes_{row['id']}", type="primary", use_container_width=True):
@@ -459,22 +387,17 @@ if st.session_state.volunteer_auth and tab2 is not None:
                             mark_received(row['id'], False)
                             st.rerun()
 
-# Вкладка управления письмами
 if st.session_state.volunteer_auth and tab_manage is not None:
     with tab_manage:
         st.header("Управление письмами")
-        
         with st.expander("➕ Добавить новое письмо", expanded=False):
             with st.form("add_letter_form", clear_on_submit=True):
                 new_id = st.number_input("Номер письма (ID) - опционально", min_value=1, step=1, value=None, help="Если оставить пустым, номер присвоится автоматически")
-                
                 child_name = st.text_input("Имя ребёнка*")
                 child_age = st.number_input("Возраст (полных лет)", min_value=0, max_value=18, step=1)
                 letter_text = st.text_area("Текст письма (по желанию)", help="Можно оставить пустым.")
                 uploaded_file = st.file_uploader("Фотография письма*", type=["jpg", "jpeg", "png"])
-                
                 submitted = st.form_submit_button("Сохранить письмо", type="primary", use_container_width=True)
-                
                 if submitted:
                     if not child_name or not uploaded_file:
                         st.error("Пожалуйста, заполните имя и загрузите фото.")
@@ -482,58 +405,33 @@ if st.session_state.volunteer_auth and tab_manage is not None:
                         try:
                             file_extension = uploaded_file.name.split(".")[-1]
                             file_name = f"{uuid.uuid4()}.{file_extension}"
-                            
                             file_bytes = uploaded_file.getvalue()
                             supabase.storage.from_("letters-photos").upload(
-                                path=file_name,
-                                file=file_bytes,
-                                file_options={"content-type": uploaded_file.type}
+                                path=file_name, file=file_bytes, file_options={"content-type": uploaded_file.type}
                             )
-                            
                             photo_url = supabase.storage.from_("letters-photos").get_public_url(file_name)
-                            
                             with engine.begin() as conn:
                                 if new_id:
-                                    conn.execute(text("""
-                                        INSERT INTO cildrens_letters 
-                                        (id, child_name, child_age, letter_text, photo_url, status)
-                                        VALUES (:new_id, :name, :age, :text, :url, 'free')
-                                    """), {
-                                        "new_id": new_id,
-                                        "name": child_name, 
-                                        "age": child_age, 
-                                        "text": letter_text if letter_text else None, 
-                                        "url": photo_url
+                                    conn.execute(text("INSERT INTO cildrens_letters (id, child_name, child_age, letter_text, photo_url, status) VALUES (:new_id, :name, :age, :text, :url, 'free')"), {
+                                        "new_id": new_id, "name": child_name, "age": child_age, "text": letter_text if letter_text else None, "url": photo_url
                                     })
                                 else:
-                                    conn.execute(text("""
-                                        INSERT INTO cildrens_letters 
-                                        (child_name, child_age, letter_text, photo_url, status)
-                                        VALUES (:name, :age, :text, :url, 'free')
-                                    """), {
-                                        "name": child_name, 
-                                        "age": child_age, 
-                                        "text": letter_text if letter_text else None, 
-                                        "url": photo_url
+                                    conn.execute(text("INSERT INTO cildrens_letters (child_name, child_age, letter_text, photo_url, status) VALUES (:name, :age, :text, :url, 'free')"), {
+                                        "name": child_name, "age": child_age, "text": letter_text if letter_text else None, "url": photo_url
                                     })
-                            
                             st.success(f"Письмо для {child_name} успешно добавлено!")
                             get_letters.clear()
                             st.rerun()
                         except Exception as e:
                             if "UniqueViolation" in str(e) or "duplicate key" in str(e).lower():
-                                st.error("❌ Письмо с таким номером (ID) уже существует. Пожалуйста, укажите другой номер или оставьте поле пустым.")
+                                st.error("❌ Письмо с таким номером (ID) уже существует.")
                             else:
                                 st.error(f"Ошибка при сохранении: {e}")
 
         st.divider()
-        
         st.subheader("🗑️ Удалить письмо")
-        st.write("Найдите письмо по имени или ID, чтобы удалить его с сайта и из базы данных.")
-        
         search_del = st.text_input("🔍 Поиск для удаления", placeholder="Введите имя ребёнка или ID...", key="search_del")
         filtered_del_df = filter_letters_for_deletion(df, search_del)
-
         if filtered_del_df.empty:
             st.info("Письма по вашему запросу не найдены.")
         else:
@@ -560,7 +458,6 @@ if st.session_state.volunteer_auth and tab_manage is not None:
                                 st.session_state[confirm_key] = True
                                 st.rerun()
 
-# Вкладка с инструкцией и реквизитами
 if tab3 is not None:
     with tab3:
         st.header("Как это работает?")
@@ -568,18 +465,13 @@ if tab3 is not None:
         1. Нажмите **«📩 Читать письмо»** — фотография откроется в новом окне.
         2. Выберите удобный вариант помощи:
            - 💝 **Скинуть деньги на подарок** — откроется окно с ссылками на Сбербанк и Т-Банк.
-           - 🎁 **Скинуть деньги на общий сбор** — откроется окно с ссылками на Сбербанк и Т-Банк для перевода в общий фонд.
+           - 🎁 **Скинуть деньги на общий сбор** — откроется окно с ссылками на Сбербанк и Т-Банк.
            - 🛒 **Купить подарок самому** — откроется форма с телефоном, выбором службы доставки и датой прибытия. **ФИО указывать не нужно**.
         3. **Важно про варианты 1 и 2:** деньги идут в общий фонд, волонтёр распределяет их на подарки детям.
         4. **Про вариант 3:** после заполнения формы подарок закрепляется за вами. Координатор свяжется по указанному телефону, чтобы запросить QR-код для получения заказа.
-
-        *Пожалуйста, если ваши планы изменились, сообщите координатору — подарок ждёт ребёнок.*
         """)
-
         st.divider()
         st.subheader("💳 Реквизиты для помощи")
-        st.write("Вы можете перевести средства на покупку подарков по удобной для вас ссылке:")
-        
         col1, col2 = st.columns(2)
         with col1:
             st.link_button("🟢 Перевести через Сбербанк", PAYMENT_LINK_SBER, use_container_width=True, type="primary")
