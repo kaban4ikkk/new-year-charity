@@ -14,11 +14,16 @@ div[data-testid="stHorizontalBlock"] {
 div[data-testid="column"] {
     display: flex !important;
     flex-direction: column !important;
-    height: 100% !important;
 }
 
 div[data-testid="column"] > div {
-    flex: 1 !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+div[data-testid="column"] > div > div[data-testid="stVerticalBlock"] {
+    height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
 }
@@ -36,7 +41,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 }
 
 div[data-testid="stVerticalBlockBorderWrapper"] > div {
-    flex: 1 !important;
+    height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
 }
